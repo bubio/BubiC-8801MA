@@ -1,0 +1,5 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.defaultConfigurePreset": "windows-debug",
+  "cmake.defaultBuildPreset": "windows-debug"
+}

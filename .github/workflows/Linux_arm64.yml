@@ -1,0 +1,105 @@
+name: Linux arm64
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build-linux-arm64:
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config rpm libasound2-dev libpulse-dev libdbus-1-dev libudev-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxrandr-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libdecor-0-dev libgbm-dev libdrm-dev
+
+      - name: Build (using project script)
+        run: |
+          chmod +x ./scripts/build_linux.sh
+          ./scripts/build_linux.sh Release arm64
+
+      - name: Prepare Portable Artifact Directory
+        if: github.event_name != 'release'
+        run: |
+          set -euo pipefail
+          PKG_ROOT="dist/BubiC-8801MA-linux-arm64"
+          mkdir -p "${PKG_ROOT}/lib"
+          cp build/BubiC-8801MA "${PKG_ROOT}/"
+
+          SDL3_PATHS="$(ldd build/BubiC-8801MA | awk '/libSDL3/ && $3 ~ /^\// {print $3}')"
+          if [ -n "${SDL3_PATHS}" ]; then
+            while IFS= read -r sofile; do
+              cp -L "${sofile}" "${PKG_ROOT}/lib/"
+            done <<< "${SDL3_PATHS}"
+          fi
+
+          cat > "${PKG_ROOT}/run.sh" << 'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          export LD_LIBRARY_PATH="${SCRIPT_DIR}/lib:${LD_LIBRARY_PATH:-}"
+          exec "${SCRIPT_DIR}/BubiC-8801MA" "$@"
+          EOF
+          chmod +x "${PKG_ROOT}/run.sh"
+
+      - name: Upload Portable Artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA-linux-arm64-portable
+          path: dist/BubiC-8801MA-linux-arm64
+
+      - name: Package (Release only)
+        if: github.event_name == 'release'
+        run: |
+          cd build
+          cpack -G "DEB;RPM" -C Release
+
+      - name: Normalize Release Filenames
+        if: github.event_name == 'release'
+        run: |
+          set -euo pipefail
+          DEB_SRC="$(ls build/*.deb | head -n 1)"
+          RPM_SRC="$(ls build/*.rpm | head -n 1)"
+          cp -f "${DEB_SRC}" build/BubiC-8801MA-linux-arm64.deb
+          cp -f "${RPM_SRC}" build/BubiC-8801MA-linux-arm64.rpm
+
+      - name: Upload DEB Artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA_Linux_arm64_deb
+          path: build/BubiC-8801MA-linux-arm64.deb
+
+      - name: Upload RPM Artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA_Linux_arm64_rpm
+          path: build/BubiC-8801MA-linux-arm64.rpm
+
+      - name: Update Release DEB
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/BubiC-8801MA-linux-arm64.deb
+          overwrite: true
+          tag: ${{ github.ref_name }}
+
+      - name: Update Release RPM
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/BubiC-8801MA-linux-arm64.rpm
+          overwrite: true
+          tag: ${{ github.ref_name }}

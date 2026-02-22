@@ -1,0 +1,20 @@
+// ---------------------------------------------------------------------------
+//	OPN/A/B interface with ADPCM support
+//	Copyright (C) cisc 1998, 2001.
+// ---------------------------------------------------------------------------
+//	$Id: opna.cpp,v 1.70 2004/02/06 13:13:39 cisc Exp $
+
+#include "opna.h"
+#include "fmgeninl.h"
+#include "headers.h"
+#include "misc.h"
+
+
+#include "../../fileio.h"
+
+#define BUILD_OPN
+#define BUILD_OPNA
+#define BUILD_OPNB
+
+//	TOFIX:
+//	 OPN ch3 縺悟ｸｸ縺ｫPrepare縺ｮ蟇ｾ雎｡縺ｨ縺ｪ縺｣縺ｦ縺励∪縺

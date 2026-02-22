@@ -1,0 +1,71 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+
+        // ========================
+        // macOS
+        // ========================
+        {
+            "name": "Debug (macOS Bundle)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/BubiC-8801MA.app/Contents/MacOS/BubiC-8801MA",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "CMake debug build (macOS)",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+
+        // ========================
+        // Windows (MSVC)
+        // ========================
+        {
+            "name": "Debug (Windows MSVC)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_x64/Debug/BubiC-8801MA.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "CMake debug build (Windows)"
+        },
+
+        // ========================
+        // Linux
+        // ========================
+        {
+            "name": "Debug (Linux)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/BubiC-8801MA",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "preLaunchTask": "CMake debug build (Linux)",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

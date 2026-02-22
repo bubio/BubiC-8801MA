@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=BubiC-8801MA
+Comment=PC-8801MA Emulator
+Exec=BubiC-8801MA %f
+Icon=bubic-8801ma
+Terminal=false
+Categories=Game;Emulator;
+Keywords=PC-8801;Emulator;Retro;
+StartupNotify=true

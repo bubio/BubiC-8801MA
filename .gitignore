@@ -1,0 +1,6 @@
+.DS_Store
+imgui.ini
+.cache/
+build/
+build_x64/
+third_party/

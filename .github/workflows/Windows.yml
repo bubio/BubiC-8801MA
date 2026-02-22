@@ -1,0 +1,77 @@
+name: Windows Build EXE/ZIP
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        arch: [x64, ARM64]
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build (using project script)
+        shell: pwsh
+        run: |
+          ./scripts/build_windows.ps1 -BuildType Release -Arch ${{ matrix.arch }}
+
+          $buildDir = "build_${{ matrix.arch }}"
+          $exePath = Join-Path $buildDir "Release\BubiC-8801MA.exe"
+
+          if (-not (Test-Path $exePath)) {
+            Write-Error "Executable not found: $exePath"
+            exit 1
+          }
+
+          $packageDir = Join-Path $buildDir "package"
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+          Copy-Item $exePath $packageDir -Force
+
+          # Copy correct architecture SDL3.dll from third_party
+          $arch = "${{ matrix.arch }}".ToLower()
+          $sdlDll = "third_party/SDL3-3.4.2/lib/$arch/SDL3.dll"
+          if (Test-Path $sdlDll) {
+            Copy-Item $sdlDll $packageDir -Force
+            Write-Host "Copied SDL3.dll from $sdlDll"
+          } else {
+            Write-Warning "SDL3.dll not found at $sdlDll"
+          }
+
+          if ($env:GITHUB_EVENT_NAME -eq "release") {
+            $zipName = "BubiC-8801MA-windows-$arch.zip"
+            $zipPath = Join-Path $buildDir $zipName
+            Compress-Archive -Path "$packageDir\*" -DestinationPath $zipPath -Force
+            echo "artifact_zip_path=$zipPath" >> $env:GITHUB_ENV
+          }
+          echo "artifact_dir_path=$packageDir" >> $env:GITHUB_ENV
+
+      - name: Upload Portable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA-windows-${{ matrix.arch }}-portable
+          path: ${{ env.artifact_dir_path }}
+
+      - name: Update Release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.artifact_zip_path }}
+          overwrite: true
+          tag: ${{ github.ref_name }}

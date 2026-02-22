@@ -1,0 +1,54 @@
+name: macOS Build Universal
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-26
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode 26.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Build (using project script)
+        run: |
+          ./scripts/build_macos.sh Release
+
+      - name: Upload .app Artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA-macos-universal-portable
+          path: build/BubiC-8801MA.app
+
+      - name: Package DMG (Release only)
+        if: github.event_name == 'release'
+        run: |
+          cd build
+          cpack -G DragNDrop -C Release
+          mv BubiC-8801MA*.dmg BubiC-8801MA-macos-universal.dmg
+
+      - name: Upload DMG Artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BubiC-8801MA-macos-universal.dmg
+          path: build/BubiC-8801MA-macos-universal.dmg
+
+      - name: Update Release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: build/BubiC-8801MA-macos-universal.dmg
+          overwrite: true
