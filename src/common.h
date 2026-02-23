@@ -1197,6 +1197,9 @@ const char *DLL_PREFIX tchar_to_char(const _TCHAR *ts);
 const _TCHAR *DLL_PREFIX wchar_to_tchar(const wchar_t *ws);
 const wchar_t *DLL_PREFIX tchar_to_wchar(const _TCHAR *ts);
 
+// Character encoding conversion
+size_t DLL_PREFIX sjis_to_utf8(const char* sjis_str, char* utf8_buffer, size_t buffer_len);
+
 // misc
 void DLL_PREFIX common_initialize();
 

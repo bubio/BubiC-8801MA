@@ -188,7 +188,7 @@ static int get_disk_names(const char* path, int drv, EMU* emu) {
     name_buf[17] = '\0';
     
     // Convert to wide char or keep as is depending on platform
-    my_tcscpy_s(emu->d88_file[drv].disk_name[count], 128, char_to_tchar(name_buf));
+    sjis_to_utf8(name_buf, emu->d88_file[drv].disk_name[count], sizeof(emu->d88_file[drv].disk_name[count]));
 
     fio.Fseek(offset + 0x1c, FILEIO_SEEK_SET);
     uint32_t disk_size = fio.FgetUint32_LE();

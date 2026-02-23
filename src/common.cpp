@@ -50,6 +50,8 @@
 #include "common.h"
 #include "fileio.h"
 #include <math.h>
+#include <string> // For std::wstring
+#include <cstring> // For strlen, strcpy
 
 #if defined(__MINGW32__) || defined(__MINGW64__)
 extern DWORD GetLongPathName(LPCTSTR lpszShortPath, LPTSTR lpszLongPath,
@@ -1507,6 +1509,86 @@ int32_t DLL_PREFIX apply_volume(int32_t sample, int volume) {
   //		return (int32_t)output;
   //	}
   return output;
+  return output;
+}
+
+size_t DLL_PREFIX sjis_to_utf8(const char* sjis_str, char* utf8_buffer, size_t buffer_len) {
+    if (!sjis_str || !utf8_buffer || buffer_len == 0) {
+        if (utf8_buffer && buffer_len > 0) utf8_buffer[0] = '\0';
+        return 0;
+    }
+
+#ifdef _WIN32
+    // Convert Shift_JIS to UTF-16 (wchar_t)
+    // CP_ACP uses the system default ANSI code page, which is Shift_JIS for Japanese Windows.
+    int wchars_needed = MultiByteToWideChar(CP_ACP, 0, sjis_str, -1, NULL, 0);
+    if (wchars_needed <= 0) {
+        utf8_buffer[0] = '\0';
+        return 0;
+    }
+    std::wstring wstr(wchars_needed, L'\0');
+    MultiByteToWideChar(CP_ACP, 0, sjis_str, -1, &wstr[0], wchars_needed);
+
+    // Convert UTF-16 (wchar_t) to UTF-8
+    int utf8_bytes_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+    if (utf8_bytes_needed <= 0 || (size_t)utf8_bytes_needed > buffer_len) {
+        utf8_buffer[0] = '\0';
+        return 0;
+    }
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, utf8_buffer, (int)buffer_len, NULL, NULL);
+    return strlen(utf8_buffer);
+#else
+    // Non-Windows implementation: custom conversion for ASCII and half-width Katakana to UTF-8
+    // Other Shift_JIS bytes are passed through.
+    const unsigned char* s = (const unsigned char*)sjis_str;
+    char* d = utf8_buffer;
+    size_t remaining_len = buffer_len - 1; // leave space for null terminator
+
+    while (*s != '\0' && remaining_len > 0) {
+        unsigned char c = *s;
+
+        if (c < 0x80) { // ASCII character (0x00-0x7F)
+            *d++ = (char)c;
+            s++;
+            remaining_len--;
+        } else if (c >= 0xA1 && c <= 0xDF) { // Half-width Katakana (SJIS single byte, 0xA1-0xDF)
+            // Convert SJIS half-width katakana to Unicode U+FF61 to U+FF9F
+            uint16_t unicode_cp = (uint16_t)(c - 0xA1) + 0xFF61;
+
+            // UTF-8 encoding for Unicode codepoints U+0800 to U+FFFF (3 bytes)
+            // This range includes U+FF61-U+FF9F
+            if (remaining_len >= 3) {
+                *d++ = (char)(0xE0 | ((unicode_cp >> 12) & 0x0F));
+                *d++ = (char)(0x80 | ((unicode_cp >> 6) & 0x3F));
+                *d++ = (char)(0x80 | (unicode_cp & 0x3F));
+                s++;
+                remaining_len -= 3;
+            } else {
+                // Not enough space for UTF-8 sequence, terminate
+                break;
+            }
+        } else if (((c >= 0x81 && c <= 0x9F) || (c >= 0xE0 && c <= 0xEF)) && *(s + 1) != '\0') {
+            // Lead byte of a two-byte Shift_JIS character.
+            // For now, pass through as-is, as full SJIS->UTF8 conversion is complex.
+            // This means full-width Japanese characters might still be garbled,
+            // but the specific half-width Katakana issue is addressed.
+            if (remaining_len >= 2) {
+                *d++ = (char)*s++;
+                *d++ = (char)*s++;
+                remaining_len -= 2;
+            } else {
+                // Not enough space for 2-byte sequence, terminate
+                break;
+            }
+        } else { // Invalid byte or unexpected character, pass through or replace with '?'
+            *d++ = (char)c; // Pass through unexpected byte
+            s++;
+            remaining_len--;
+        }
+    }
+    *d = '\0';
+    return (d - utf8_buffer);
+#endif
 }
 
 void DLL_PREFIX get_host_time(cur_time_t *cur_time) {

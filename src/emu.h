@@ -439,7 +439,7 @@ public:
 #ifdef USE_FLOPPY_DISK
   struct {
     _TCHAR path[_MAX_PATH];
-    _TCHAR disk_name[MAX_D88_BANKS][128]; // may convert to UTF-8
+    char disk_name[MAX_D88_BANKS][384]; // may convert to UTF-8
     int bank_num;
     int cur_bank;
   } d88_file[USE_FLOPPY_DISK];
