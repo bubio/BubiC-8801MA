@@ -66,10 +66,45 @@ static std::string wstring_to_utf8(const std::wstring& wstr) {
 static std::string path_to_utf8(const fs::path& p) {
   return wstring_to_utf8(p.wstring());
 }
+
+// Convert UTF-8 path text to filesystem path on Windows via UTF-16.
+static fs::path utf8_to_fs_path(const char* utf8) {
+  if (!utf8) utf8 = "";
+  int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, NULL, 0);
+  if (wlen <= 0) {
+    return fs::path();
+  }
+  std::wstring wpath((size_t)wlen - 1, L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, utf8, -1, &wpath[0], wlen);
+  return fs::path(wpath);
+}
+
+// Convert native TCHAR path (config/VM side) to UTF-8 (UI side).
+static std::string tchar_path_to_utf8(const _TCHAR* path) {
+  if (!path) return std::string();
+#if defined(_UNICODE) && defined(SUPPORT_TCHAR_TYPE)
+  return wstring_to_utf8(path);
+#else
+  int wlen = MultiByteToWideChar(CP_ACP, 0, path, -1, NULL, 0);
+  if (wlen <= 0) return std::string(path);
+  std::wstring wpath((size_t)wlen - 1, L'\0');
+  MultiByteToWideChar(CP_ACP, 0, path, -1, &wpath[0], wlen);
+  return wstring_to_utf8(wpath);
+#endif
+}
 #else
 // On non-Windows, just use string() (assumes UTF-8 locale)
 static std::string path_to_utf8(const fs::path& p) {
   return p.string();
+}
+
+static fs::path utf8_to_fs_path(const char* utf8) {
+  return fs::path(utf8 ? utf8 : "");
+}
+
+static std::string tchar_path_to_utf8(const _TCHAR* path) {
+  const char* cpath = tchar_to_char(path);
+  return std::string(cpath ? cpath : "");
 }
 #endif
 
@@ -246,7 +281,8 @@ OSD::OSD() {
   pending_blank_type = 0;
   // Use last browser path from config if available, otherwise use home directory
   if (config.last_browser_path[0] != _T('\0')) {
-    snprintf(current_browser_path, _MAX_PATH, "%s", tchar_to_char(config.last_browser_path));
+    std::string saved_path_utf8 = tchar_path_to_utf8(config.last_browser_path);
+    snprintf(current_browser_path, _MAX_PATH, "%s", saved_path_utf8.c_str());
   } else {
     std::string home_dir = get_home_directory();
     snprintf(current_browser_path, _MAX_PATH, "%s", home_dir.c_str());
@@ -1743,7 +1779,7 @@ void OSD::draw_file_browser() {
   if (!show_file_browser) return;
 
   // Validate path and fall back to parent if it doesn't exist
-  fs::path current_p(current_browser_path);
+  fs::path current_p = utf8_to_fs_path(current_browser_path);
   while (!fs::exists(current_p) || !fs::is_directory(current_p)) {
     if (current_p.has_parent_path() && current_p != current_p.root_path()) {
       current_p = current_p.parent_path();
@@ -1782,9 +1818,10 @@ void OSD::draw_file_browser() {
     ImGui::Separator();
 
     try {
-      if (fs::exists(current_browser_path) && fs::is_directory(current_browser_path)) {
+      fs::path current_path = utf8_to_fs_path(current_browser_path);
+      if (fs::exists(current_path) && fs::is_directory(current_path)) {
         // Add Parent Directory option
-        fs::path p(current_browser_path);
+        fs::path p(current_path);
         if (p.has_parent_path() && p != p.root_path()) {
           if (ImGui::Button("[..] (Parent Directory)")) {
             std::string parent_path = path_to_utf8(p.parent_path());
@@ -1794,7 +1831,7 @@ void OSD::draw_file_browser() {
         }
 
         int file_count = 0;
-          for (const auto & entry : fs::directory_iterator(current_browser_path)) {
+          for (const auto & entry : fs::directory_iterator(current_path)) {
             std::string filename = path_to_utf8(entry.path().filename());
 #ifdef __APPLE__
             filename = nfd_to_nfc(filename);
@@ -1896,7 +1933,7 @@ void OSD::draw_save_browser() {
   if (!show_save_browser) return;
 
   // Validate path and fall back to parent if it doesn't exist
-  fs::path current_p(current_browser_path);
+  fs::path current_p = utf8_to_fs_path(current_browser_path);
   while (!fs::exists(current_p) || !fs::is_directory(current_p)) {
     if (current_p.has_parent_path() && current_p != current_p.root_path()) {
       current_p = current_p.parent_path();
@@ -1934,8 +1971,9 @@ void OSD::draw_save_browser() {
 
     // Reuse directory navigation from file browser
     try {
-      if (fs::exists(current_browser_path) && fs::is_directory(current_browser_path)) {
-        fs::path p(current_browser_path);
+      fs::path current_path = utf8_to_fs_path(current_browser_path);
+      if (fs::exists(current_path) && fs::is_directory(current_path)) {
+        fs::path p(current_path);
         if (p.has_parent_path() && p != p.root_path()) {
           if (ImGui::Button("[..] (Parent Directory)")) {
             std::string parent_path = path_to_utf8(p.parent_path());
@@ -1943,7 +1981,7 @@ void OSD::draw_save_browser() {
             my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
           }
         }
-        for (const auto & entry : fs::directory_iterator(current_browser_path)) {
+        for (const auto & entry : fs::directory_iterator(current_path)) {
           if (entry.is_directory()) {
             std::string dirname = path_to_utf8(entry.path().filename());
 #ifdef __APPLE__
@@ -1963,7 +2001,7 @@ void OSD::draw_save_browser() {
     ImGui::InputText("Filename", save_filename, sizeof(save_filename));
     
     if (ImGui::Button("Create and Insert")) {
-      fs::path full_save_path = fs::path(current_browser_path) / save_filename;
+      fs::path full_save_path = utf8_to_fs_path(current_browser_path) / utf8_to_fs_path(save_filename);
       std::string path_str = path_to_utf8(full_save_path);
       std::string filename_str = path_to_utf8(full_save_path.filename());
 
