@@ -1744,6 +1744,27 @@ bool OSD::draw_menu_contents() {
           }
           ImGui::EndMenu();
         }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Mute FM", NULL, config.sound_mute_fm)) {
+          config.sound_mute_fm = !config.sound_mute_fm;
+          if (vm)
+            vm->update_mute();
+        }
+        if (ImGui::MenuItem("Mute SSG", NULL, config.sound_mute_ssg)) {
+          config.sound_mute_ssg = !config.sound_mute_ssg;
+          if (vm)
+            vm->update_mute();
+        }
+        if (ImGui::MenuItem("Mute ADPCM", NULL, config.sound_mute_adpcm)) {
+          config.sound_mute_adpcm = !config.sound_mute_adpcm;
+          if (vm)
+            vm->update_mute();
+        }
+        if (ImGui::MenuItem("Mute Rhythm", NULL, config.sound_mute_rhythm)) {
+          config.sound_mute_rhythm = !config.sound_mute_rhythm;
+          if (vm)
+            vm->update_mute();
+        }
         ImGui::EndMenu();
       }
       ImGui::EndMenu();

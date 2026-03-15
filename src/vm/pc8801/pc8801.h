@@ -483,6 +483,7 @@ public:
 	// sound generation
 	void initialize_sound(int rate, int samples);
 	void update_sound_rate(int rate, int samples);
+	void update_mute();
 	uint16_t* create_sound(int* extra_frames);
 	int get_sound_buffer_ptr();
 #ifdef USE_SOUND_VOLUME
