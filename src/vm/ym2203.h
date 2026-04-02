@@ -165,6 +165,7 @@ public:
 	void initialize_sound(int rate, int clock, int samples, int decibel_fm, int decibel_psg);
 	void change_rate(int rate, int clock);
 	void set_reg(uint32_t addr, uint32_t data); // for patch
+	void set_channel_mask(uint32_t mask);
 	bool is_ym2608;
 	bool is_port_a_input;
 	bool is_port_b_input;

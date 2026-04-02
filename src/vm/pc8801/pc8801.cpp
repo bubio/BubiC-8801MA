@@ -800,6 +800,7 @@ void VM::initialize_sound(int rate, int samples)
 		pcm8->initialize_sound(rate, 32000);
 	}
 #endif
+	update_mute();
 }
 
 void VM::update_sound_rate(int rate, int samples)
@@ -851,6 +852,27 @@ void VM::update_sound_rate(int rate, int samples)
 	if(config.printer_type == 2) {
 		PCM8BIT *pcm8 = (PCM8BIT *)pc88prn;
 		pcm8->initialize_sound(rate, 32000);
+	}
+#endif
+	update_mute();
+}
+
+void VM::update_mute()
+{
+	uint32_t mask = 0;
+	if(config.sound_mute_fm) mask |= 0x3f;
+	if(config.sound_mute_ssg) mask |= 0x1c0;
+	if(config.sound_mute_adpcm) mask |= 0x200;
+	if(config.sound_mute_rhythm) mask |= 0xfc00;
+	
+#ifdef SUPPORT_PC88_OPN1
+	if(pc88opn1 != NULL) {
+		pc88opn1->set_channel_mask(mask);
+	}
+#endif
+#ifdef SUPPORT_PC88_OPN2
+	if(pc88opn2 != NULL) {
+		pc88opn2->set_channel_mask(mask);
 	}
 #endif
 }

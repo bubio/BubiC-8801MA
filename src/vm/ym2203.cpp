@@ -533,6 +533,20 @@ void YM2203::set_reg(uint32_t addr, uint32_t data)
 	port_log[addr].data = data;
 }
 
+void YM2203::set_channel_mask(uint32_t mask)
+{
+	if(is_ym2608) {
+		if(opna) opna->SetChannelMask(mask);
+	} else {
+		if(opn) opn->SetChannelMask(mask);
+	}
+#ifdef SUPPORT_MAME_FM_DLL
+	if(dllchip) {
+		fmdll->SetChannelMask(dllchip, ~mask);
+	}
+#endif
+}
+
 void YM2203::update_timing(int new_clocks, double new_frames_per_sec, int new_lines_per_frame)
 {
 	if(is_ym2608) {

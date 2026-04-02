@@ -121,6 +121,10 @@ void initialize_config()
 	config.sound_frequency = 2;	// 55467Hz
 	config.sound_latency = 0;	// 50msec
 	config.sound_strict_rendering = true;
+	config.sound_mute_fm = false;
+	config.sound_mute_ssg = false;
+	config.sound_mute_adpcm = false;
+	config.sound_mute_rhythm = false;
 	#ifdef USE_FLOPPY_DISK
 		config.sound_noise_fdd = false;
 	#endif
@@ -329,6 +333,10 @@ void load_config(const _TCHAR* config_path)
 	config.sound_frequency = MyGetPrivateProfileInt(_T("Sound"), _T("Frequency"), config.sound_frequency, config_path);
 	config.sound_latency = MyGetPrivateProfileInt(_T("Sound"), _T("Latency"), config.sound_latency, config_path);
 	config.sound_strict_rendering = MyGetPrivateProfileBool(_T("Sound"), _T("StrictRendering"), config.sound_strict_rendering, config_path);
+	config.sound_mute_fm = MyGetPrivateProfileBool(_T("Sound"), _T("MuteFM"), config.sound_mute_fm, config_path);
+	config.sound_mute_ssg = MyGetPrivateProfileBool(_T("Sound"), _T("MuteSSG"), config.sound_mute_ssg, config_path);
+	config.sound_mute_adpcm = MyGetPrivateProfileBool(_T("Sound"), _T("MuteADPCM"), config.sound_mute_adpcm, config_path);
+	config.sound_mute_rhythm = MyGetPrivateProfileBool(_T("Sound"), _T("MuteRhythm"), config.sound_mute_rhythm, config_path);
 	#ifdef USE_FLOPPY_DISK
 		config.sound_noise_fdd = MyGetPrivateProfileBool(_T("Sound"), _T("NoiseFDD"), config.sound_noise_fdd, config_path);
 	#endif
@@ -587,6 +595,10 @@ void save_config(const _TCHAR* config_path)
 	MyWritePrivateProfileInt(_T("Sound"), _T("Frequency"), config.sound_frequency, config_path);
 	MyWritePrivateProfileInt(_T("Sound"), _T("Latency"), config.sound_latency, config_path);
 	MyWritePrivateProfileBool(_T("Sound"), _T("StrictRendering"), config.sound_strict_rendering, config_path);
+	MyWritePrivateProfileBool(_T("Sound"), _T("MuteFM"), config.sound_mute_fm, config_path);
+	MyWritePrivateProfileBool(_T("Sound"), _T("MuteSSG"), config.sound_mute_ssg, config_path);
+	MyWritePrivateProfileBool(_T("Sound"), _T("MuteADPCM"), config.sound_mute_adpcm, config_path);
+	MyWritePrivateProfileBool(_T("Sound"), _T("MuteRhythm"), config.sound_mute_rhythm, config_path);
 	#ifdef USE_FLOPPY_DISK
 		MyWritePrivateProfileBool(_T("Sound"), _T("NoiseFDD"), config.sound_noise_fdd, config_path);
 	#endif

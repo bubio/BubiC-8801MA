@@ -184,6 +184,10 @@ typedef struct {
 	int sound_frequency;
 	int sound_latency;
 	bool sound_strict_rendering;
+	bool sound_mute_fm;
+	bool sound_mute_ssg;
+	bool sound_mute_adpcm;
+	bool sound_mute_rhythm;
 	#if defined(USE_SHARED_DLL) || defined(USE_FLOPPY_DISK)
 		bool sound_noise_fdd;
 	#endif
