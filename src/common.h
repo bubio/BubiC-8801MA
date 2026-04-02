@@ -10,7 +10,7 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-#define APP_VERSION_STRING "1.0.0"
+#define APP_VERSION_STRING "1.0.1"
 
 // move shared codes to DLL???
 // #ifdef _USE_QT
