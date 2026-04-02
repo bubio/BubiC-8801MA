@@ -217,6 +217,7 @@ void UPD765A::reset()
 	}
 	set_irq(false);
 	set_drq(false);
+	memset(disk_exchanged, 0, sizeof(disk_exchanged));
 }
 
 static const _TCHAR* get_command_name(uint8_t data)
@@ -685,6 +686,13 @@ uint8_t UPD765A::get_devstat(int drv)
 {
 	if(drv >= MAX_DRIVE) {
 		return ST3_FT | drv;
+	}
+	if(disk_exchanged[drv]) {
+		// Disk was just swapped — return Ready but WITHOUT Two-Sided/WP.
+		// This signals the disk change to software polling Sense Drive Status.
+		// (QUASI88: disk_ex_drv)
+		disk_exchanged[drv] = false;
+		return drv | ((fdc[drv].track & 1) ? ST3_HD : 0) | (fdc[drv].track ? 0 : ST3_T0) | (force_ready || disk[drv]->inserted ? ST3_RY : 0);
 	}
 	return drv | ((fdc[drv].track & 1) ? ST3_HD : 0) | ST3_TS | (fdc[drv].track ? 0 : ST3_T0) | (force_ready || disk[drv]->inserted ? ST3_RY : 0) | (disk[drv]->write_protected ? ST3_WP : 0);
 }
@@ -1649,6 +1657,9 @@ double UPD765A::get_usec_to_exec_phase()
 void UPD765A::open_disk(int drv, const _TCHAR* file_path, int bank)
 {
 	if(drv < MAX_DRIVE) {
+		if(disk[drv]->inserted) {
+			disk_exchanged[drv] = true;
+		}
 		disk[drv]->open(file_path, bank);
 		if(disk[drv]->changed) {
 #ifdef _FDC_DEBUG_LOG
@@ -1868,6 +1879,7 @@ bool UPD765A::process_state(FILEIO* state_fio, bool loading)
 	state_fio->StateValue(force_ready);
 	state_fio->StateValue(reset_signal);
 	state_fio->StateValue(prev_index);
+	state_fio->StateArray(disk_exchanged, sizeof(disk_exchanged), 1);
 	state_fio->StateValue(prev_drq_clock);
 	return true;
 }

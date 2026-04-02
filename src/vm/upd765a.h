@@ -76,6 +76,7 @@ private:
 	bool force_ready;
 	bool reset_signal;
 	bool prev_index;
+	bool disk_exchanged[4];
 	
 	// timing
 	uint32_t prev_drq_clock;
