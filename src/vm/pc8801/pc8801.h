@@ -520,6 +520,11 @@ public:
 	
 	void update_config();
 	bool process_state(FILEIO* state_fio, bool loading);
+
+	// Bubilator88 cross-emulator memory dump (see docs/MEMORY_DUMP_FORMAT.md).
+	// Writes main/gvram/tvram/subram/extram/info.txt into `dir_utf8`.
+	// Returns true on success.
+	bool dump_memory(const char* dir_utf8);
 	
 	// ----------------------------------------
 	// for each device

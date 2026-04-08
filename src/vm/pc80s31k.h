@@ -62,6 +62,9 @@ public:
 	{
 		d_pio = device;
 	}
+	// Bubilator88 cross-emulator memory dump (see docs/MEMORY_DUMP_FORMAT.md)
+	const uint8_t* get_rom_ptr() const { return rom; }
+	const uint8_t* get_ram_ptr() const { return ram; }
 };
 
 #endif

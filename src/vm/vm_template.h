@@ -153,6 +153,9 @@ public:
 	
 	virtual void update_config() { }
 	virtual bool process_state(FILEIO* state_fio, bool loading) { return true; }
+
+	// Bubilator88 cross-emulator memory dump (see docs/MEMORY_DUMP_FORMAT.md).
+	virtual bool dump_memory(const char* dir_utf8) { return false; }
 	
 	// devices
 	virtual void set_cpu_clock(DEVICE *cpu, uint32_t clocks) { }
