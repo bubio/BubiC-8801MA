@@ -1284,3 +1284,131 @@ bool VM::process_state(FILEIO* state_fio, bool loading)
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// Bubilator88 cross-emulator memory dump.
+// Writes the PC-8801 memory regions as raw binary files into `dir_utf8`,
+// following the format specified in Bubilator88's docs/MEMORY_DUMP_FORMAT.md.
+// Used for byte-level `diff -r` comparison against Bubilator88 dumps.
+// ---------------------------------------------------------------------------
+
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <cerrno>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
+
+namespace {
+static bool ensure_directory(const char* path)
+{
+#if defined(_WIN32)
+	int rc = _mkdir(path);
+#else
+	int rc = mkdir(path, 0755);
+#endif
+	if (rc == 0) return true;
+	if (errno == EEXIST) return true;
+	return false;
+}
+
+static bool write_raw_file(const char* dir, const char* name,
+                           const void* data, size_t size)
+{
+	char path[2048];
+	std::snprintf(path, sizeof(path), "%s/%s", dir, name);
+	FILE* fp = std::fopen(path, "wb");
+	if (!fp) return false;
+	size_t written = std::fwrite(data, 1, size, fp);
+	std::fclose(fp);
+	return written == size;
+}
+} // anonymous namespace
+
+bool VM::dump_memory(const char* dir_utf8)
+{
+	if (!dir_utf8 || !*dir_utf8) return false;
+	if (!ensure_directory(dir_utf8)) return false;
+	if (!pc88) return false;
+
+	// --- main.bin: 64KB main RAM -----------------------------------------
+	if (!write_raw_file(dir_utf8, "main.bin", pc88->get_ram_ptr(), 0x10000))
+		return false;
+
+#if defined(SUPPORT_PC88_GVRAM)
+	// --- gvram_{b,r,g}.bin: 16KB each ------------------------------------
+	// BubiC layout: plane 0 (B) at 0x0000, R at 0x4000, G at 0x8000
+	const uint8_t* gv = pc88->get_gvram_ptr();
+	if (!write_raw_file(dir_utf8, "gvram_b.bin", gv + 0x0000, 0x4000))
+		return false;
+	if (!write_raw_file(dir_utf8, "gvram_r.bin", gv + 0x4000, 0x4000))
+		return false;
+	if (!write_raw_file(dir_utf8, "gvram_g.bin", gv + 0x8000, 0x4000))
+		return false;
+#endif
+
+#if defined(PC8801SR_VARIANT)
+	// --- tvram.bin: 4KB text VRAM ----------------------------------------
+	if (!write_raw_file(dir_utf8, "tvram.bin", pc88->get_tvram_ptr(), 0x1000))
+		return false;
+#endif
+
+	// --- subram.bin: 32KB sub-CPU memory space ---------------------------
+	// Bubilator88 layout: 8KB DISK.ROM + 8KB pattern + 16KB RAM = 32KB
+	if (pc88sub) {
+		uint8_t buf[0x8000];
+		memset(buf, 0, sizeof(buf));
+		memcpy(buf + 0x0000, pc88sub->get_rom_ptr(), 0x2000);
+		// 0x2000-0x3FFF: unmapped in real HW (left as zero)
+		memcpy(buf + 0x4000, pc88sub->get_ram_ptr(), 0x4000);
+		if (!write_raw_file(dir_utf8, "subram.bin", buf, sizeof(buf)))
+			return false;
+	}
+
+#if defined(PC88_EXRAM_BANKS)
+	// --- extram_c0_b<N>.bin: 32KB per bank, one card ---------------------
+	const uint8_t* ex = pc88->get_exram_ptr();
+	int banks = pc88->get_exram_banks();
+	for (int b = 0; b < banks; b++) {
+		char name[32];
+		std::snprintf(name, sizeof(name), "extram_c0_b%d.bin", b);
+		if (!write_raw_file(dir_utf8, name, ex + (size_t)b * 0x8000, 0x8000))
+			return false;
+	}
+#endif
+
+	// --- info.txt: ISO8601 UTC timestamp + metadata ----------------------
+	{
+		char path[2048];
+		std::snprintf(path, sizeof(path), "%s/info.txt", dir_utf8);
+		FILE* fp = std::fopen(path, "w");
+		if (!fp) return false;
+
+		std::time_t t = std::time(nullptr);
+		std::tm tm_utc;
+#if defined(_WIN32)
+		gmtime_s(&tm_utc, &t);
+#else
+		gmtime_r(&t, &tm_utc);
+#endif
+		char ts[32];
+		std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm_utc);
+
+		std::fprintf(fp, "emulator=BubiC-8801MA\n");
+		std::fprintf(fp, "format_version=1\n");
+		std::fprintf(fp, "timestamp=%s\n", ts);
+		std::fprintf(fp, "clock=%s\n", pc88->is_cpu_clock_low() ? "4MHz" : "8MHz");
+#if defined(PC88_EXRAM_BANKS)
+		std::fprintf(fp, "ext_ram=installed\n");
+#else
+		std::fprintf(fp, "ext_ram=none\n");
+#endif
+		std::fprintf(fp, "boot_mode=%d\n", boot_mode);
+		std::fclose(fp);
+	}
+
+	return true;
+}
+

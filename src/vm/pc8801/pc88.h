@@ -470,6 +470,20 @@ public:
 		return (n88rom[0x79d7] < 0x38);
 	}
 #endif
+	// Bubilator88 cross-emulator memory dump (see docs/MEMORY_DUMP_FORMAT.md)
+	const uint8_t* get_ram_ptr() const { return ram; }
+#if defined(SUPPORT_PC88_GVRAM)
+	const uint8_t* get_gvram_ptr() const { return gvram; }
+#endif
+#if defined(PC8801SR_VARIANT)
+	const uint8_t* get_tvram_ptr() const { return tvram; }
+#endif
+#if defined(PC88_EXRAM_BANKS)
+	const uint8_t* get_exram_ptr() const { return exram; }
+	int get_exram_banks() const { return PC88_EXRAM_BANKS; }
+#endif
+	bool is_cpu_clock_low() const { return cpu_clock_low; }
+
 	void set_context_cpu(Z80* device)
 	{
 		d_cpu = device;

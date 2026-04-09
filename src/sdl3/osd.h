@@ -8,6 +8,7 @@
 #include "../common.h"
 #include "../vm/vm.h"
 #include <SDL3/SDL.h>
+#include <string>
 
 // SDL3 specific definitions
 #define OSD_CONSOLE_BLUE 1
@@ -102,6 +103,8 @@ private:
   bool show_menu;
   bool show_file_browser;
   bool show_save_browser;
+  bool pending_memdump;
+  std::string pending_memdump_dir;
   bool imgui_initialized;
   uint64_t last_ui_interaction_tick;
   bool ui_interacting;
