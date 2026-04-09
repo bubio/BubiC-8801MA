@@ -268,6 +268,7 @@ OSD::OSD() {
   show_menu = true;
   show_file_browser = false;
   show_save_browser = false;
+  pending_memdump = false;
   imgui_initialized = false;
   ui_interacting = false;
   ui_interacting_reason = UI_REASON_NONE;
@@ -1057,7 +1058,28 @@ int OSD::draw_screen() {
       menu_height = ImGui::GetFrameHeight();
       ImGui::EndMainMenuBar();
     }
-  
+
+    // Process pending memory dump from folder dialog callback
+    if (pending_memdump && !pending_memdump_dir.empty()) {
+      std::time_t t = std::time(nullptr);
+      std::tm tm_local;
+#if defined(_WIN32)
+      localtime_s(&tm_local, &t);
+#else
+      localtime_r(&t, &tm_local);
+#endif
+      char stamp[32];
+      std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &tm_local);
+      std::string dir = pending_memdump_dir + "/BubiC_memdump_" + stamp;
+      bool ok = vm ? vm->dump_memory(dir.c_str()) : false;
+      fprintf(stderr, "%s %s\n",
+              ok ? "Memory dump written to"
+                 : "Memory dump FAILED at",
+              dir.c_str());
+      pending_memdump = false;
+      pending_memdump_dir.clear();
+    }
+
     // Draw Status Bar at the bottom
     const float status_height = 24.0f;
     if (ui_visible) {
@@ -1770,23 +1792,16 @@ bool OSD::draw_menu_contents() {
       ImGui::Separator();
       if (ImGui::MenuItem("Dump Memory...")) {
         if (vm) {
-          // Build dump directory: $HOME/BubiC_memdump_YYYYMMDD_HHMMSS/
-          std::time_t t = std::time(nullptr);
-          std::tm tm_local;
-#if defined(_WIN32)
-          localtime_s(&tm_local, &t);
-#else
-          localtime_r(&t, &tm_local);
-#endif
-          char stamp[32];
-          std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &tm_local);
           std::string home = get_home_directory();
-          std::string dir = home + "/BubiC_memdump_" + stamp;
-          bool ok = vm->dump_memory(dir.c_str());
-          fprintf(stderr, "%s %s\n",
-                  ok ? "Memory dump written to"
-                     : "Memory dump FAILED at",
-                  dir.c_str());
+          pending_memdump = true;
+          SDL_ShowOpenFolderDialog([](void *userdata, const char * const *filelist, int filter) {
+            OSD *osd = static_cast<OSD*>(userdata);
+            if (filelist && filelist[0]) {
+              osd->pending_memdump_dir = filelist[0];
+            } else {
+              osd->pending_memdump = false;
+            }
+          }, this, window, home.c_str(), false);
         }
       }
       ImGui::EndMenu();
