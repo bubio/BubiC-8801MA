@@ -267,6 +267,7 @@ OSD::OSD() {
   key_caps_locked = false;
   show_menu = true;
   pending_memdump = false;
+  native_dialog_open = false;
   imgui_initialized = false;
   ui_interacting = false;
   ui_interacting_reason = UI_REASON_NONE;
@@ -1139,6 +1140,9 @@ int OSD::draw_screen() {
     if (menu_tree_open) {
       next_reason |= UI_REASON_MENU_TREE;
     }
+    if (native_dialog_open) {
+      next_reason |= UI_REASON_NATIVE_DIALOG;
+    }
     const bool next_ui_interacting = (next_reason != UI_REASON_NONE);
     if (!prev_ui_interacting && next_ui_interacting) {
       clear_all_pressed_keys();
@@ -1777,6 +1781,7 @@ bool OSD::draw_menu_contents() {
         if (vm) {
           std::string home = get_home_directory();
           pending_memdump = true;
+          native_dialog_open = true;
           SDL_ShowOpenFolderDialog([](void *userdata, const char * const *filelist, int filter) {
             OSD *osd = static_cast<OSD*>(userdata);
             if (filelist && filelist[0]) {
@@ -1784,6 +1789,7 @@ bool OSD::draw_menu_contents() {
             } else {
               osd->pending_memdump = false;
             }
+            osd->native_dialog_open = false;
           }, this, window, home.c_str(), false);
         }
       }
@@ -1816,11 +1822,13 @@ void OSD::select_file(int drive) {
   };
   std::string default_loc = tchar_path_to_utf8(config.last_browser_path);
   if (default_loc.empty()) default_loc = get_home_directory();
+  native_dialog_open = true;
   SDL_ShowOpenFileDialog([](void *userdata, const char * const *filelist, int filter) {
     OSD *osd = static_cast<OSD*>(userdata);
     if (filelist && filelist[0]) {
       osd->pending_insert_path = filelist[0];
     }
+    osd->native_dialog_open = false;
   }, this, window, filters, 2, default_loc.c_str(), false);
 }
 
@@ -1892,11 +1900,13 @@ void OSD::select_save_file(int drive, int type) {
   };
   std::string default_loc = tchar_path_to_utf8(config.last_browser_path);
   if (default_loc.empty()) default_loc = get_home_directory();
+  native_dialog_open = true;
   SDL_ShowSaveFileDialog([](void *userdata, const char * const *filelist, int filter) {
     OSD *osd = static_cast<OSD*>(userdata);
     if (filelist && filelist[0]) {
       osd->pending_save_path = filelist[0];
     }
+    osd->native_dialog_open = false;
   }, this, window, filters, 1, default_loc.c_str());
 }
 
