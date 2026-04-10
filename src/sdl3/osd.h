@@ -102,6 +102,7 @@ private:
   bool show_menu;
   bool pending_memdump;
   std::string pending_memdump_dir;
+  bool native_dialog_open;
   bool imgui_initialized;
   uint64_t last_ui_interaction_tick;
   bool ui_interacting;
@@ -145,6 +146,7 @@ public:
     UI_REASON_MENU_TREE = 1u << 0,
     UI_REASON_FILE_BROWSER = 1u << 1,
     UI_REASON_SAVE_BROWSER = 1u << 2,
+    UI_REASON_NATIVE_DIALOG = 1u << 3,
   };
   void force_unlock_vm() {}
   void sleep(uint32_t ms);
