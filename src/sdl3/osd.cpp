@@ -266,8 +266,6 @@ OSD::OSD() {
   key_shift_released = false;
   key_caps_locked = false;
   show_menu = true;
-  show_file_browser = false;
-  show_save_browser = false;
   pending_memdump = false;
   imgui_initialized = false;
   ui_interacting = false;
@@ -280,14 +278,6 @@ OSD::OSD() {
   fd1_path[0] = _T('\0');
   fd2_path[0] = _T('\0');
   pending_blank_type = 0;
-  // Use last browser path from config if available, otherwise use home directory
-  if (config.last_browser_path[0] != _T('\0')) {
-    std::string saved_path_utf8 = tchar_path_to_utf8(config.last_browser_path);
-    snprintf(current_browser_path, _MAX_PATH, "%s", saved_path_utf8.c_str());
-  } else {
-    std::string home_dir = get_home_directory();
-    snprintf(current_browser_path, _MAX_PATH, "%s", home_dir.c_str());
-  }
   vm_screen_buffer = NULL;
   vm_screen_width = 0;
   vm_screen_height = 0;
@@ -658,7 +648,7 @@ void OSD::update_input() {
     const bool is_key_event =
         (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP);
     const bool block_vm_keydown =
-        (show_file_browser || show_save_browser || ui_interacting);
+        ui_interacting;
 
     // Let ImGui capture non-key events, but keep key events flowing for
     // key-state synchronization (especially KEY_UP).
@@ -1042,7 +1032,6 @@ int OSD::draw_screen() {
     bool ui_visible = !is_fullscreen || 
                       (current_tick - last_ui_interaction_tick < 5000) || 
                       ImGui::IsPopupOpen((const char*)NULL, ImGuiPopupFlags_AnyPopupId) ||
-                      show_file_browser || show_save_browser ||
                       io.WantCaptureKeyboard;
   
       if (ui_visible) {
@@ -1141,20 +1130,14 @@ int OSD::draw_screen() {
     SDL_FRect dest_rect = { draw_x, draw_y, draw_w, draw_h };
     SDL_RenderTexture(renderer, screen_texture, NULL, &dest_rect);
   
-    draw_file_browser();
-    draw_save_browser();
-  
+    process_pending_insert();
+    process_pending_save();
+
     // Pause emulation only when settings UI is actually open.
     // Hovering the menu bar should not pause the VM.
     uint32_t next_reason = UI_REASON_NONE;
     if (menu_tree_open) {
       next_reason |= UI_REASON_MENU_TREE;
-    }
-    if (show_file_browser) {
-      next_reason |= UI_REASON_FILE_BROWSER;
-    }
-    if (show_save_browser) {
-      next_reason |= UI_REASON_SAVE_BROWSER;
     }
     const bool next_ui_interacting = (next_reason != UI_REASON_NONE);
     if (!prev_ui_interacting && next_ui_interacting) {
@@ -1821,272 +1804,139 @@ void OSD::draw_menu() {
     ImGui::EndMainMenuBar();
   }
 
-  draw_file_browser();
-  draw_save_browser();
-
   ImGui::Render();
   ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 }
 
 void OSD::select_file(int drive) {
   pending_drive = drive;
-  show_file_browser = true;
+  static const SDL_DialogFileFilter filters[] = {
+    { "Disk Images", "d88;D88;d77;D77;2hd;2HD;2d;2D" },
+    { "All Files", "*" },
+  };
+  std::string default_loc = tchar_path_to_utf8(config.last_browser_path);
+  if (default_loc.empty()) default_loc = get_home_directory();
+  SDL_ShowOpenFileDialog([](void *userdata, const char * const *filelist, int filter) {
+    OSD *osd = static_cast<OSD*>(userdata);
+    if (filelist && filelist[0]) {
+      osd->pending_insert_path = filelist[0];
+    }
+  }, this, window, filters, 2, default_loc.c_str(), false);
 }
 
-void OSD::draw_file_browser() {
-  if (!show_file_browser) return;
+void OSD::process_pending_insert() {
+  if (pending_insert_path.empty()) return;
 
-  // Validate path and fall back to parent if it doesn't exist
-  fs::path current_p = utf8_to_fs_path(current_browser_path);
-  while (!fs::exists(current_p) || !fs::is_directory(current_p)) {
-    if (current_p.has_parent_path() && current_p != current_p.root_path()) {
-      current_p = current_p.parent_path();
-    } else {
-      current_p = get_home_directory();
-      break;
-    }
-    std::string path_utf8 = path_to_utf8(current_p);
-    snprintf(current_browser_path, _MAX_PATH, "%s", path_utf8.c_str());
-    my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-  }
+  std::string full_path = pending_insert_path;
+  pending_insert_path.clear();
 
-  static std::string popup_file_path;
-  static int popup_num_banks = 0;
-  static bool open_popup = false;
+  // Update last_browser_path from the selected file's directory
+  fs::path selected_dir = utf8_to_fs_path(full_path.c_str()).parent_path();
+  std::string dir_utf8 = path_to_utf8(selected_dir);
+  my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(dir_utf8.c_str()));
 
-  if (ImGui::Begin("File Browser", &show_file_browser)) {
-    ImGui::Text("Path: %s", current_browser_path);
-
-#ifdef _WIN32
-    // Drive selection for Windows
-    ImGui::SameLine();
-    ImGui::Text(" | Drive:");
-    ImGui::SameLine();
-    std::vector<char> drives = get_available_drives();
-    for (char drive : drives) {
-      ImGui::SameLine();
-      char label[4] = {drive, ':', '\0'};
-      if (ImGui::SmallButton(label)) {
-        snprintf(current_browser_path, _MAX_PATH, "%c:\\", drive);
-        my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-      }
-    }
-#endif
-
-    ImGui::Separator();
-
-    try {
-      fs::path current_path = utf8_to_fs_path(current_browser_path);
-      if (fs::exists(current_path) && fs::is_directory(current_path)) {
-        // Add Parent Directory option
-        fs::path p(current_path);
-        if (p.has_parent_path() && p != p.root_path()) {
-          if (ImGui::Button("[..] (Parent Directory)")) {
-            std::string parent_path = path_to_utf8(p.parent_path());
-            snprintf(current_browser_path, _MAX_PATH, "%s", parent_path.c_str());
-            my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-          }
-        }
-
-        int file_count = 0;
-          for (const auto & entry : fs::directory_iterator(current_path)) {
-            std::string filename = path_to_utf8(entry.path().filename());
+  fs::path file_p = utf8_to_fs_path(full_path.c_str());
+  std::string display_name = path_to_utf8(file_p.filename());
 #ifdef __APPLE__
-            filename = nfd_to_nfc(filename);
+  display_name = nfd_to_nfc(display_name);
 #endif
-            if (entry.is_directory()) {
-              if (ImGui::Button(("[D] " + filename).c_str())) {
-                std::string dir_path = path_to_utf8(entry.path());
-                snprintf(current_browser_path, _MAX_PATH, "%s", dir_path.c_str());
-                my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-              }
-            } else {
-            std::string ext = path_to_utf8(entry.path().extension());
-            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-            if (ext == ".d88" || ext == ".d77" || ext == ".2hd" || ext == ".2d") {
-              if (ImGui::Button(filename.c_str())) {
-                std::string full_path = path_to_utf8(entry.path());
 
-                std::string display_name = filename;
+  if (pending_drive == 0) {
+    // FD1: Always insert the first image (Bank 0)
+    if (vm) {
+      vm->open_floppy_disk(0, utf8_path_to_tchar(full_path.c_str()), 0);
+      my_tcscpy_s(fd1_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
 
-                if (pending_drive == 0) {
-                  // FD1: Always insert the first image (Bank 0)
-                  if (vm) {
-                    vm->open_floppy_disk(0, utf8_path_to_tchar(full_path.c_str()), 0);
-                    my_tcscpy_s(fd1_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
-                    
-                    if (emu) {
-                      my_tcscpy_s(emu->floppy_disk_status[0].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
-                      emu->floppy_disk_status[0].bank = 0;
-                      // ヘッダを解析して内部イメージ名を取得
-                      int banks = get_disk_names(full_path.c_str(), 0, emu);
-                      emu->d88_file[0].cur_bank = 0;
+      if (emu) {
+        my_tcscpy_s(emu->floppy_disk_status[0].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+        emu->floppy_disk_status[0].bank = 0;
+        int banks = get_disk_names(full_path.c_str(), 0, emu);
+        emu->d88_file[0].cur_bank = 0;
 
-                      // If FD2 is empty and file has a second image, insert Bank 1 to FD2
-                      if (fd2_path[0] == '\0' && banks >= 2) {
-                        vm->open_floppy_disk(1, utf8_path_to_tchar(full_path.c_str()), 1);
-                        my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
-                        if (emu) {
-                          my_tcscpy_s(emu->floppy_disk_status[1].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
-                          emu->floppy_disk_status[1].bank = 1;
-                          get_disk_names(full_path.c_str(), 1, emu);
-                          emu->d88_file[1].cur_bank = 1;
-                          // 自動装填した分も履歴に追加
-                          add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
-                        }
-                      }
-                    }
-                    add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 0);
-                  }
-                } else {
-                  // FD2: Always insert the first image (Bank 0)
-                  if (vm) {
-                    vm->open_floppy_disk(1, utf8_path_to_tchar(full_path.c_str()), 0);
-                    my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
-                    if (emu) {
-                      my_tcscpy_s(emu->floppy_disk_status[1].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
-                      emu->floppy_disk_status[1].bank = 0;
-                      get_disk_names(full_path.c_str(), 1, emu);
-                      emu->d88_file[1].cur_bank = 0;
-                    }
-                    add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
-                  }
-                }
-                show_file_browser = false;
-              }
-              file_count++;
-            }
+        // If FD2 is empty and file has a second image, insert Bank 1 to FD2
+        if (fd2_path[0] == '\0' && banks >= 2) {
+          vm->open_floppy_disk(1, utf8_path_to_tchar(full_path.c_str()), 1);
+          my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
+          if (emu) {
+            my_tcscpy_s(emu->floppy_disk_status[1].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+            emu->floppy_disk_status[1].bank = 1;
+            get_disk_names(full_path.c_str(), 1, emu);
+            emu->d88_file[1].cur_bank = 1;
+            add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
           }
         }
-        if (file_count == 0) {
-          ImGui::TextDisabled("(No supported disk images found in this directory)");
-        }
-      } else {
-        ImGui::TextColored(ImVec4(1,0,0,1), "Invalid Path!");
       }
-    } catch (const std::exception& e) {
-      ImGui::Text("Error: %s", e.what());
+      add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 0);
     }
-
-    if (ImGui::Button("Home")) {
-      std::string home_dir = get_home_directory();
-      snprintf(current_browser_path, _MAX_PATH, "%s", home_dir.c_str());
-      my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
+  } else {
+    // FD2: Always insert the first image (Bank 0)
+    if (vm) {
+      vm->open_floppy_disk(1, utf8_path_to_tchar(full_path.c_str()), 0);
+      my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
+      if (emu) {
+        my_tcscpy_s(emu->floppy_disk_status[1].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+        emu->floppy_disk_status[1].bank = 0;
+        get_disk_names(full_path.c_str(), 1, emu);
+        emu->d88_file[1].cur_bank = 0;
+      }
+      add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
     }
-    ImGui::SameLine();
-    if (ImGui::Button("Close")) {
-      show_file_browser = false;
-    }
-    ImGui::End();
   }
 }
 
 void OSD::select_save_file(int drive, int type) {
   pending_drive = drive;
   pending_blank_type = type;
-  show_save_browser = true;
+  static const SDL_DialogFileFilter filters[] = {
+    { "D88 Disk Image", "d88;D88" },
+  };
+  std::string default_loc = tchar_path_to_utf8(config.last_browser_path);
+  if (default_loc.empty()) default_loc = get_home_directory();
+  SDL_ShowSaveFileDialog([](void *userdata, const char * const *filelist, int filter) {
+    OSD *osd = static_cast<OSD*>(userdata);
+    if (filelist && filelist[0]) {
+      osd->pending_save_path = filelist[0];
+    }
+  }, this, window, filters, 1, default_loc.c_str());
 }
 
-void OSD::draw_save_browser() {
-  if (!show_save_browser) return;
+void OSD::process_pending_save() {
+  if (pending_save_path.empty()) return;
 
-  // Validate path and fall back to parent if it doesn't exist
-  fs::path current_p = utf8_to_fs_path(current_browser_path);
-  while (!fs::exists(current_p) || !fs::is_directory(current_p)) {
-    if (current_p.has_parent_path() && current_p != current_p.root_path()) {
-      current_p = current_p.parent_path();
-    } else {
-      current_p = get_home_directory();
-      break;
-    }
-    std::string path_utf8 = path_to_utf8(current_p);
-    snprintf(current_browser_path, _MAX_PATH, "%s", path_utf8.c_str());
-    my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
+  std::string path_str = pending_save_path;
+  pending_save_path.clear();
+
+  // Ensure .d88 extension
+  fs::path save_p = utf8_to_fs_path(path_str.c_str());
+  std::string ext = path_to_utf8(save_p.extension());
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  if (ext != ".d88") {
+    path_str += ".d88";
+    save_p = utf8_to_fs_path(path_str.c_str());
   }
 
-  static char save_filename[256] = "blank.d88";
+  // Update last_browser_path
+  std::string dir_utf8 = path_to_utf8(save_p.parent_path());
+  my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(dir_utf8.c_str()));
 
-  if (ImGui::Begin("Create Blank Disk", &show_save_browser)) {
-    ImGui::Text("Path: %s", current_browser_path);
+  std::string filename_str = path_to_utf8(save_p.filename());
 
-#ifdef _WIN32
-    // Drive selection for Windows
-    ImGui::SameLine();
-    ImGui::Text(" | Drive:");
-    ImGui::SameLine();
-    std::vector<char> drives = get_available_drives();
-    for (char drive : drives) {
-      ImGui::SameLine();
-      char label[4] = {drive, ':', '\0'};
-      if (ImGui::SmallButton(label)) {
-        snprintf(current_browser_path, _MAX_PATH, "%c:\\", drive);
-        my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
+  if (emu && emu->create_blank_floppy_disk(utf8_path_to_tchar(path_str.c_str()), (uint8_t)pending_blank_type)) {
+    if (vm) {
+      vm->open_floppy_disk(pending_drive, utf8_path_to_tchar(path_str.c_str()), 0);
+      if (pending_drive == 0) {
+        my_tcscpy_s(fd1_path, _MAX_PATH, utf8_path_to_tchar(filename_str.c_str()));
+      } else {
+        my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(filename_str.c_str()));
       }
-    }
-#endif
 
-    ImGui::Separator();
-
-    // Reuse directory navigation from file browser
-    try {
-      fs::path current_path = utf8_to_fs_path(current_browser_path);
-      if (fs::exists(current_path) && fs::is_directory(current_path)) {
-        fs::path p(current_path);
-        if (p.has_parent_path() && p != p.root_path()) {
-          if (ImGui::Button("[..] (Parent Directory)")) {
-            std::string parent_path = path_to_utf8(p.parent_path());
-            snprintf(current_browser_path, _MAX_PATH, "%s", parent_path.c_str());
-            my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-          }
-        }
-        for (const auto & entry : fs::directory_iterator(current_path)) {
-          if (entry.is_directory()) {
-            std::string dirname = path_to_utf8(entry.path().filename());
-#ifdef __APPLE__
-            dirname = nfd_to_nfc(dirname);
-#endif
-            if (ImGui::Button(("[D] " + dirname).c_str())) {
-              std::string dir_path = path_to_utf8(entry.path());
-              snprintf(current_browser_path, _MAX_PATH, "%s", dir_path.c_str());
-              my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(current_browser_path));
-            }
-          }
-        }
+      if (emu) {
+        my_tcscpy_s(emu->floppy_disk_status[pending_drive].path, _MAX_PATH, utf8_path_to_tchar(path_str.c_str()));
+        emu->floppy_disk_status[pending_drive].bank = 0;
+        get_disk_names(path_str.c_str(), pending_drive, emu);
+        emu->d88_file[pending_drive].cur_bank = 0;
       }
-    } catch (...) {}
-
-    ImGui::Separator();
-    ImGui::InputText("Filename", save_filename, sizeof(save_filename));
-    
-    if (ImGui::Button("Create and Insert")) {
-      fs::path full_save_path = utf8_to_fs_path(current_browser_path) / utf8_to_fs_path(save_filename);
-      std::string path_str = path_to_utf8(full_save_path);
-      std::string filename_str = path_to_utf8(full_save_path.filename());
-
-      if (emu && emu->create_blank_floppy_disk(utf8_path_to_tchar(path_str.c_str()), (uint8_t)pending_blank_type)) {
-        if (vm) {
-          vm->open_floppy_disk(pending_drive, utf8_path_to_tchar(path_str.c_str()), 0);
-          if (pending_drive == 0) {
-            my_tcscpy_s(fd1_path, _MAX_PATH, utf8_path_to_tchar(filename_str.c_str()));
-          } else {
-            my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(filename_str.c_str()));
-          }
-          
-          if (emu) {
-            my_tcscpy_s(emu->floppy_disk_status[pending_drive].path, _MAX_PATH, utf8_path_to_tchar(path_str.c_str()));
-            emu->floppy_disk_status[pending_drive].bank = 0;
-            get_disk_names(path_str.c_str(), pending_drive, emu);
-            emu->d88_file[pending_drive].cur_bank = 0;
-          }
-          add_recent_disk(utf8_path_to_tchar(path_str.c_str()), pending_drive);
-        }
-        show_save_browser = false;
-      }
+      add_recent_disk(utf8_path_to_tchar(path_str.c_str()), pending_drive);
     }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel")) {
-      show_save_browser = false;
-    }
-    ImGui::End();
   }
 }

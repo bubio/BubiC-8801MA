@@ -89,7 +89,6 @@ private:
   void release_imgui();
   void draw_menu();
   bool draw_menu_contents();
-  void draw_file_browser();
   void draw_status_bar();
 
   // FPS tracking
@@ -101,8 +100,6 @@ private:
   int emu_frames_accum;
   float emu_fps;
   bool show_menu;
-  bool show_file_browser;
-  bool show_save_browser;
   bool pending_memdump;
   std::string pending_memdump_dir;
   bool imgui_initialized;
@@ -115,13 +112,15 @@ private:
   int requested_window_h;
   void select_save_file(int drive, int type);
   void select_file(int drive);
+  void process_pending_insert();
+  void process_pending_save();
   int pending_blank_type;
   int pending_drive;
+  std::string pending_insert_path;
+  std::string pending_save_path;
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
-  void draw_save_browser();
   void clear_all_pressed_keys();
-  char current_browser_path[_MAX_PATH];
 
 public:
   OSD();
