@@ -42,6 +42,11 @@ void pioflow_log_set_context(I8255* main_pio, I8255* sub_pio, Z80* main_cpu, Z80
 void pioflow_log_write(const I8255* pio, int ch, uint32_t data);
 void pioflow_log_read (const I8255* pio, int ch, uint32_t data);
 
+// Record a control-register write (mode set or BSR) at port 0xFF.
+// Emitted as a synthetic port "FF" write in the JSONL stream so it
+// appears inline with A/B/C events for handshake-sequence debugging.
+void pioflow_log_control(const I8255* pio, uint32_t data);
+
 // RAII helper: skip nested calls in the i8255.cpp recursion. Used
 // inside write_io8 / read_io8 to suppress logging of control-driven
 // side-effect writes to Port C.

@@ -63,22 +63,14 @@ void pioflow_log_set_context(I8255* main_pio, I8255* sub_pio, Z80* main_cpu, Z80
     pioflow_lazy_init();
 }
 
-static void pioflow_emit(const I8255* pio, int ch, bool is_write, uint32_t val)
+static void pioflow_emit_generic(const I8255* pio, const char* port, bool is_write, uint32_t val)
 {
     if(!g_init) pioflow_lazy_init();
     if(g_log == NULL) return;
-    if(ch < 0 || ch > 2) return;
 
     const char* side = "?";
     if(pio == g_main_pio)      side = "main";
     else if(pio == g_sub_pio)  side = "sub";
-
-    const char* port = "?";
-    switch(ch) {
-    case 0: port = "A"; break;
-    case 1: port = "B"; break;
-    case 2: port = "C"; break;
-    }
 
     uint32_t main_pc = g_main_cpu ? g_main_cpu->get_pc() : 0;
     uint32_t sub_pc  = g_sub_cpu  ? g_sub_cpu->get_pc()  : 0;
@@ -94,6 +86,18 @@ static void pioflow_emit(const I8255* pio, int ch, bool is_write, uint32_t val)
         val & 0xFF);
 }
 
+static void pioflow_emit(const I8255* pio, int ch, bool is_write, uint32_t val)
+{
+    if(ch < 0 || ch > 2) return;
+    const char* port = "?";
+    switch(ch) {
+    case 0: port = "A"; break;
+    case 1: port = "B"; break;
+    case 2: port = "C"; break;
+    }
+    pioflow_emit_generic(pio, port, is_write, val);
+}
+
 void pioflow_log_write(const I8255* pio, int ch, uint32_t data)
 {
     pioflow_emit(pio, ch, true, data);
@@ -102,6 +106,11 @@ void pioflow_log_write(const I8255* pio, int ch, uint32_t data)
 void pioflow_log_read(const I8255* pio, int ch, uint32_t data)
 {
     pioflow_emit(pio, ch, false, data);
+}
+
+void pioflow_log_control(const I8255* pio, uint32_t data)
+{
+    pioflow_emit_generic(pio, "FF", true, data);
 }
 
 PIOFlowLogScope::PIOFlowLogScope()

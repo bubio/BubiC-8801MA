@@ -71,6 +71,9 @@ void I8255::write_io8(uint32_t addr, uint32_t data)
 #endif
 		break;
 	case 3:
+		if(pioflow_scope.is_top_level()) {
+			pioflow_log_control(this, data);
+		}
 		if(data & 0x80) {
 			port[0].mode = (data & 0x40) ? 2 : ((data >> 5) & 1);
 			port[0].rmask = (port[0].mode == 2) ? 0xff : (data & 0x10) ? 0xff : 0;
