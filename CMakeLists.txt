@@ -45,6 +45,7 @@ set(VM_SOURCES
     src/vm/pc8801/pc8801.cpp
     src/vm/pcm1bit.cpp
     src/vm/pcm8bit.cpp
+    src/vm/pioflow_log.cpp
     src/vm/prnfile.cpp
     src/vm/scsi_cdrom.cpp
     src/vm/scsi_dev.cpp

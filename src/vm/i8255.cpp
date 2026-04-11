@@ -8,6 +8,7 @@
 */
 
 #include "i8255.h"
+#include "pioflow_log.h"
 
 // mode1 input
 #define BIT_IBF_A	0x20	// PC5
@@ -35,7 +36,12 @@ void I8255::reset()
 void I8255::write_io8(uint32_t addr, uint32_t data)
 {
 	int ch = addr & 3;
-	
+
+	PIOFlowLogScope pioflow_scope;
+	if(pioflow_scope.is_top_level() && ch < 3) {
+		pioflow_log_write(this, ch, data);
+	}
+
 	switch(ch) {
 	case 0:
 	case 1:
@@ -112,7 +118,9 @@ void I8255::write_io8(uint32_t addr, uint32_t data)
 uint32_t I8255::read_io8(uint32_t addr)
 {
 	int ch = addr & 3;
-	
+
+	PIOFlowLogScope pioflow_scope;
+
 	switch(ch) {
 	case 0:
 	case 1:
@@ -134,7 +142,13 @@ uint32_t I8255::read_io8(uint32_t addr)
 				write_io8(2, val);
 			}
 		}
-		return (port[ch].rreg & port[ch].rmask) | (port[ch].wreg & ~port[ch].rmask);
+		{
+			uint32_t value = (port[ch].rreg & port[ch].rmask) | (port[ch].wreg & ~port[ch].rmask);
+			if(pioflow_scope.is_top_level()) {
+				pioflow_log_read(this, ch, value);
+			}
+			return value;
+		}
 	}
 	return 0xff;
 }
