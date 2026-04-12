@@ -28,6 +28,8 @@
 #endif
 #include "../z80.h"
 
+#include "../pioflow_log.h"
+
 #include "../disk.h"
 #include "../noise.h"
 #include "../pc80s31k.h"
@@ -544,6 +546,9 @@ VM::VM(EMU* parent_emu) : VM_TEMPLATE(parent_emu)
 		pc88pio_sub->set_context_port_c(pc88pio, SIG_I8255_PORT_C, 0x0f, 4);
 		pc88pio_sub->set_context_port_c(pc88pio, SIG_I8255_PORT_C, 0xf0, -4);
 		pc88pio_sub->clear_ports_by_cmdreg = true;
+		// Cross-emulator PIO data-flow trace (enabled via BUBIC_PIO_LOG env var).
+		// Safe to call unconditionally; the logger itself decides whether to open a file.
+		pioflow_log_set_context(pc88pio, pc88pio_sub, pc88cpu, pc88cpu_sub);
 		pc88fdc_sub->set_context_irq(pc88cpu_sub, SIG_CPU_IRQ, 1);
 		pc88fdc_sub->set_context_noise_seek(pc88noise_seek);
 		pc88fdc_sub->set_context_noise_head_down(pc88noise_head_down);
