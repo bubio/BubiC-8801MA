@@ -1,6 +1,10 @@
 # BubiC-8801MA
 
 <p align="center">
+  <img src="assets/icon_src.jpg" alt="BubiC-8801MA" width="128" height="128">
+</p>
+
+<p align="center">
   <a href="https://github.com/bubio/BubiC-8801MA/releases/latest">
     <img src="https://img.shields.io/github/v/release/bubio/BubiC-8801MA" alt="Latest Release">
   </a>
@@ -12,10 +16,11 @@
   </a>
 </p>
 
-
 This project is based on the Common Source Project's ePC-8801MA, with Windows-specific parts replaced by SDL3 to support multiple platforms.
 
-Merging the Common Source Project into XM8 was extremely difficult, so this version focuses on core functionality.
+
+
+Merging the Common Source Code Project into XM8 was extremely difficult, so this version focuses on core functionality.
 
 
 <p align="center">
