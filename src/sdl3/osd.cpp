@@ -1932,7 +1932,11 @@ void OSD::show_screenshot_dialog() {
   {
     time_t now = time(NULL);
     struct tm lt;
+#if defined(_WIN32)
+    localtime_s(&lt, &now);
+#else
     localtime_r(&now, &lt);
+#endif
     char ts[20];
     snprintf(ts, sizeof(ts), "%04d%02d%02d_%02d%02d%02d",
              lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
