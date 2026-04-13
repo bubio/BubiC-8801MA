@@ -9,6 +9,7 @@
 #include "../vm/vm.h"
 #include <SDL3/SDL.h>
 #include <string>
+#include <mutex>
 
 // SDL3 specific definitions
 #define OSD_CONSOLE_BLUE 1
@@ -119,6 +120,10 @@ private:
   int pending_drive;
   std::string pending_insert_path;
   std::string pending_save_path;
+  std::string pending_screenshot_path;
+  std::mutex screenshot_mutex;
+  void show_screenshot_dialog();
+  void process_pending_screenshot();
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
   void clear_all_pressed_keys();

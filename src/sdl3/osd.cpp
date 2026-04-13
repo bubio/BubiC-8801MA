@@ -1133,6 +1133,7 @@ int OSD::draw_screen() {
   
     process_pending_insert();
     process_pending_save();
+    process_pending_screenshot();
 
     // Pause emulation only when settings UI is actually open.
     // Hovering the menu bar should not pause the VM.
@@ -1661,6 +1662,8 @@ bool OSD::draw_menu_contents() {
         if (ImGui::MenuItem("x2.0", NULL, config.window_scale_idx == 2)) { config.window_scale_idx = 2; update_window_scale(); }
         if (ImGui::MenuItem("x2.5", NULL, config.window_scale_idx == 3)) { config.window_scale_idx = 3; update_window_scale(); }
         if (ImGui::MenuItem("x3.0", NULL, config.window_scale_idx == 4)) { config.window_scale_idx = 4; update_window_scale(); }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Save Screenshot...")) { show_screenshot_dialog(); }
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu("Keyboard")) {
@@ -1913,6 +1916,88 @@ void OSD::select_save_file(int drive, int type) {
     }
     osd->native_dialog_open = false;
   }, this, window, filters, 1, default_loc.c_str());
+}
+
+void OSD::show_screenshot_dialog() {
+  // Build default filename: AppName_DiskName_DateTime.bmp
+  std::string basename = "BubiC-8801MA";
+  if (emu && emu->floppy_disk_status[0].path[0] != '\0') {
+    fs::path disk_p(tchar_to_char(emu->floppy_disk_status[0].path));
+    std::string stem = path_to_utf8(disk_p.stem());
+    if (!stem.empty()) {
+      basename += "_" + stem;
+    }
+  }
+  // Append timestamp: YYYYMMDD_HHMMSS
+  {
+    time_t now = time(NULL);
+    struct tm lt;
+    localtime_r(&now, &lt);
+    char ts[20];
+    snprintf(ts, sizeof(ts), "%04d%02d%02d_%02d%02d%02d",
+             lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+             lt.tm_hour, lt.tm_min, lt.tm_sec);
+    basename += "_";
+    basename += ts;
+  }
+  basename += ".bmp";
+
+  fs::path default_path = fs::path(get_home_directory()) / basename;
+  std::string default_loc = path_to_utf8(default_path);
+
+  static const SDL_DialogFileFilter filters[] = {
+    { "BMP Image", "bmp" },
+  };
+
+  native_dialog_open = true;
+  SDL_ShowSaveFileDialog([](void *userdata, const char * const *filelist, int filter) {
+    OSD *osd = static_cast<OSD*>(userdata);
+    if (filelist && filelist[0]) {
+      std::lock_guard<std::mutex> lock(osd->screenshot_mutex);
+      osd->pending_screenshot_path = filelist[0];
+    }
+    osd->native_dialog_open = false;
+  }, this, window, filters, 1, default_loc.c_str());
+}
+
+void OSD::process_pending_screenshot() {
+  std::string path_str;
+  {
+    std::lock_guard<std::mutex> lock(screenshot_mutex);
+    if (pending_screenshot_path.empty()) return;
+    path_str = pending_screenshot_path;
+    pending_screenshot_path.clear();
+  }
+
+  // Ensure .bmp extension.
+  fs::path save_p = utf8_to_fs_path(path_str.c_str());
+  std::string ext = path_to_utf8(save_p.extension());
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  if (ext != ".bmp") {
+    path_str += ".bmp";
+  }
+
+  // Build surface from the VM's internal screen buffer (no UI overlay).
+  if (!vm_screen_buffer || vm_screen_width <= 0 || vm_screen_height <= 0) {
+    OSD_LOG("Screenshot failed: no screen buffer");
+    return;
+  }
+
+  SDL_Surface *surface = SDL_CreateSurfaceFrom(
+      vm_screen_width, vm_screen_height, SDL_PIXELFORMAT_XRGB8888,
+      vm_screen_buffer, vm_screen_width * (int)sizeof(scrntype_t));
+  if (!surface) {
+    OSD_LOG("Screenshot surface creation failed: %s", SDL_GetError());
+    return;
+  }
+
+  if (SDL_SaveBMP(surface, path_str.c_str())) {
+    OSD_LOG("Screenshot saved: %s", path_str.c_str());
+  } else {
+    OSD_LOG("Screenshot save failed: %s", SDL_GetError());
+  }
+
+  SDL_DestroySurface(surface);
 }
 
 void OSD::process_pending_save() {
