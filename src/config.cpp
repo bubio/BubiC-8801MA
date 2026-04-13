@@ -40,7 +40,7 @@ void initialize_config()
 	
 	// control
 	config.cpu_type = 1; // Default to 4MHz
-	config.cpu_power = 1; // Default to x1 speed
+	config.cpu_power = 1.0f; // Default to x1 speed
 	config.full_speed = false;
 	config.compress_state = config.drive_vm_in_opecode = true;
 	#if defined(USE_BOOT_MODE) && defined(BOOT_MODE_DEFAULT)
@@ -106,9 +106,7 @@ void initialize_config()
 	#endif
 	config.cpu_type = 1; // 4MHz by default
 	config.compress_state = config.drive_vm_in_opecode = true;
-	config.cpu_power = 1;
-	config.full_speed = false;
-	config.cpu_power = 1;
+	config.cpu_power = 1.0f;
 	config.full_speed = false;
 	
 	// screen

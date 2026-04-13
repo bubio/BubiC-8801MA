@@ -465,10 +465,10 @@ void OSD::update_sound(int *extra_frames) {
   // Keep audio playback speed aligned with CPU multiplier.
   float desired_ratio = 1.0f;
   if (!config.full_speed) {
-    int mul = config.cpu_power;
-    if (mul < 1) mul = 1;
-    if (mul > 16) mul = 16;
-    desired_ratio = (float)mul;
+    float mul = config.cpu_power;
+    if (mul < 0.25f) mul = 1.0f;
+    if (mul > 16.0f) mul = 16.0f;
+    desired_ratio = mul;
   }
 
   if (audio_speed_ratio != desired_ratio) {
@@ -1257,8 +1257,11 @@ void OSD::draw_status_bar() {
     char speed_text[64];
     if (config.full_speed) {
       snprintf(speed_text, sizeof(speed_text), "FULL SPEED");
-    } else if (config.cpu_power > 1) {
-      snprintf(speed_text, sizeof(speed_text), "Speed: x%d", config.cpu_power);
+    } else if (config.cpu_power != 1.0f) {
+      if (config.cpu_power < 1.0f)
+        snprintf(speed_text, sizeof(speed_text), "Speed: x%.2g", config.cpu_power);
+      else
+        snprintf(speed_text, sizeof(speed_text), "Speed: x%d", (int)config.cpu_power);
     } else {
       speed_text[0] = '\0';
     }
@@ -1440,11 +1443,13 @@ bool OSD::draw_menu_contents() {
         if (emu) emu->reset();
       }
       ImGui::Separator();
-      if (ImGui::MenuItem("CPU x1", NULL, config.cpu_power == 1)) { config.cpu_power = 1; if(vm) vm->update_config(); }
-      if (ImGui::MenuItem("CPU x2", NULL, config.cpu_power == 2)) { config.cpu_power = 2; if(vm) vm->update_config(); }
-      if (ImGui::MenuItem("CPU x4", NULL, config.cpu_power == 4)) { config.cpu_power = 4; if(vm) vm->update_config(); }
-      if (ImGui::MenuItem("CPU x8", NULL, config.cpu_power == 8)) { config.cpu_power = 8; if(vm) vm->update_config(); }
-      if (ImGui::MenuItem("CPU x16", NULL, config.cpu_power == 16)) { config.cpu_power = 16; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x0.25", NULL, config.cpu_power == 0.25f)) { config.cpu_power = 0.25f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x0.5", NULL, config.cpu_power == 0.5f)) { config.cpu_power = 0.5f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x1", NULL, config.cpu_power == 1.0f)) { config.cpu_power = 1.0f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x2", NULL, config.cpu_power == 2.0f)) { config.cpu_power = 2.0f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x4", NULL, config.cpu_power == 4.0f)) { config.cpu_power = 4.0f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x8", NULL, config.cpu_power == 8.0f)) { config.cpu_power = 8.0f; if(vm) vm->update_config(); }
+      if (ImGui::MenuItem("CPU x16", NULL, config.cpu_power == 16.0f)) { config.cpu_power = 16.0f; if(vm) vm->update_config(); }
       if (ImGui::MenuItem("Full Speed", NULL, config.full_speed)) { config.full_speed = !config.full_speed; }
       ImGui::Separator();
       if (ImGui::MenuItem("Romaji to Kana", NULL, config.romaji_to_kana)) { config.romaji_to_kana = !config.romaji_to_kana; }

@@ -359,9 +359,9 @@ int EMU::run() {
     total_frame_time = 0;
     elapsed_time = 0;
   } else {
-    int speed_mul = (config.cpu_power < 1) ? 1 : config.cpu_power;
+    float speed_mul = (config.cpu_power < 0.25f) ? 1.0f : config.cpu_power;
     elapsed_time =
-        ((uint64_t)(current_tick - begin_tick) << MS_SHIFT) * (uint64_t)speed_mul;
+        (uint64_t)(((uint64_t)(current_tick - begin_tick) << MS_SHIFT) * speed_mul);
     // Prevent long "no-run" stalls when accumulated frame time gets too far
     // ahead of wall clock (can happen after audio-driven burst generation).
     if ((int64_t)(total_frame_time - elapsed_time) > (200LL << MS_SHIFT)) {
@@ -370,9 +370,9 @@ int EMU::run() {
   }
 
   int ran_frames = 0;
-  int speed_mul = (config.cpu_power < 1) ? 1 : config.cpu_power;
+  float speed_mul = (config.cpu_power < 0.25f) ? 1.0f : config.cpu_power;
   // Prioritize render cadence at x1; allow more catch-up only at high speed.
-  const int max_batches = config.full_speed ? 1 : ((speed_mul == 1) ? 1 : (speed_mul * 4));
+  const int max_batches = config.full_speed ? 1 : ((speed_mul <= 1.0f) ? 1 : (int)(speed_mul * 4));
 
   uint64_t ms_per_frame = 0;
   if (!config.full_speed) {
