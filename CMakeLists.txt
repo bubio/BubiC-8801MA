@@ -14,6 +14,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Must be set BEFORE add_executable()
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # Force UTF-8 for source and execution charset; required on Japanese
+    # locale Windows where MSVC otherwise treats BOM-less sources as CP932.
+    add_compile_options(/utf-8)
 endif()
 
 # Configure sources

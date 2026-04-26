@@ -62,11 +62,14 @@ if (-not (Test-Path $SdlCMakePath)) {
 $CMakeArch = if ($Arch -eq "ARM64") { "ARM64" } else { "x64" }
 
 cmake -S . -B $BuildDir `
-    -DCMAKE_BUILD_TYPE=$BuildType `
+    -G "Visual Studio 17 2022" `
     -A $CMakeArch `
+    -DCMAKE_BUILD_TYPE=$BuildType `
     -DCMAKE_PREFIX_PATH="$SdlCMakePath"
+if ($LASTEXITCODE -ne 0) { throw "CMake configure failed (exit $LASTEXITCODE)" }
 
 cmake --build $BuildDir --config $BuildType -j $env:NUMBER_OF_PROCESSORS
+if ($LASTEXITCODE -ne 0) { throw "CMake build failed (exit $LASTEXITCODE)" }
 
 Write-Host ""
 Write-Host "=== Build complete ===" -ForegroundColor Green

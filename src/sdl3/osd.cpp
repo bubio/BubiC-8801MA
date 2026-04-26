@@ -1561,10 +1561,15 @@ void OSD::load_font() {
 
   const float font_size = 18.0f;
   
-  // Helper to find first existing font from a list
+  // Helper to find first existing font from a list.
+  // Use u8path + error_code: path strings are UTF-8 (some contain Japanese
+  // characters for macOS fonts) and the default narrow path ctor on Windows
+  // would interpret them via the system code page (CP932), throwing on
+  // invalid sequences and aborting the process.
   auto find_font = [&](const std::vector<std::string>& paths) -> std::string {
     for (const auto& p : paths) {
-      if (fs::exists(p)) return p;
+      std::error_code ec;
+      if (fs::exists(fs::u8path(p), ec)) return p;
     }
     return "";
   };
@@ -1632,16 +1637,10 @@ void OSD::load_font() {
     io.Fonts->AddFontDefault(&cfg);
   }
 
-  // Build texture atlas
-  unsigned char* pixels;
-  int width, height;
-  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-  // Update backend texture if already initialized
-  if (imgui_initialized) {
-    ImGui_ImplSDLRenderer3_DestroyDeviceObjects();
-    ImGui_ImplSDLRenderer3_CreateDeviceObjects();
-  }
+  // ImGui 1.92+ with ImGuiBackendFlags_RendererHasTextures handles atlas
+  // building and texture upload incrementally — no explicit Build() or
+  // DestroyDeviceObjects/CreateDeviceObjects is needed here. The renderer
+  // backend will pick up the new fonts on the next frame.
 }
 
 void OSD::release_imgui() {
