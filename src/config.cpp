@@ -118,6 +118,7 @@ void initialize_config()
 	// sound
 	config.sound_frequency = 2;	// 55467Hz
 	config.sound_latency = 0;	// 50msec
+	config.master_volume = 100;
 	config.sound_strict_rendering = true;
 	config.sound_mute_fm = false;
 	config.sound_mute_ssg = false;
@@ -330,6 +331,9 @@ void load_config(const _TCHAR* config_path)
 	// sound
 	config.sound_frequency = MyGetPrivateProfileInt(_T("Sound"), _T("Frequency"), config.sound_frequency, config_path);
 	config.sound_latency = MyGetPrivateProfileInt(_T("Sound"), _T("Latency"), config.sound_latency, config_path);
+	config.master_volume = MyGetPrivateProfileInt(_T("Sound"), _T("MasterVolume"), config.master_volume, config_path);
+	if (config.master_volume < 0) config.master_volume = 0;
+	if (config.master_volume > 100) config.master_volume = 100;
 	config.sound_strict_rendering = MyGetPrivateProfileBool(_T("Sound"), _T("StrictRendering"), config.sound_strict_rendering, config_path);
 	config.sound_mute_fm = MyGetPrivateProfileBool(_T("Sound"), _T("MuteFM"), config.sound_mute_fm, config_path);
 	config.sound_mute_ssg = MyGetPrivateProfileBool(_T("Sound"), _T("MuteSSG"), config.sound_mute_ssg, config_path);
@@ -592,6 +596,7 @@ void save_config(const _TCHAR* config_path)
 	// sound
 	MyWritePrivateProfileInt(_T("Sound"), _T("Frequency"), config.sound_frequency, config_path);
 	MyWritePrivateProfileInt(_T("Sound"), _T("Latency"), config.sound_latency, config_path);
+	MyWritePrivateProfileInt(_T("Sound"), _T("MasterVolume"), config.master_volume, config_path);
 	MyWritePrivateProfileBool(_T("Sound"), _T("StrictRendering"), config.sound_strict_rendering, config_path);
 	MyWritePrivateProfileBool(_T("Sound"), _T("MuteFM"), config.sound_mute_fm, config_path);
 	MyWritePrivateProfileBool(_T("Sound"), _T("MuteSSG"), config.sound_mute_ssg, config_path);

@@ -106,6 +106,7 @@ namespace Lang {
   static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g"};
   static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d"};
   static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード", "全速", "최고 속도", "VELOCIDAD MÁXIMA", "VITESSE MAXIMALE"};
+  static constexpr Msg VolumeLabel = {"Vol:", "音量:", "音量:", "음량:", "Vol:", "Vol:"};
   static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f"};
   static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f"};
 }
@@ -702,6 +703,7 @@ bool OSD::reconfigure_sound(int rate, int samples) {
   }
 
   (void)SDL_SetAudioStreamFrequencyRatio(new_stream, 1.0f);
+  (void)SDL_SetAudioStreamGain(new_stream, config.master_volume / 100.0f);
   if (!SDL_ResumeAudioStreamDevice(new_stream)) {
     SDL_DestroyAudioStream(new_stream);
     return false;
@@ -1328,12 +1330,12 @@ void OSD::draw_status_bar() {
   ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - status_height));
   ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, status_height));
 
-  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
                            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse |
                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
                            ImGuiWindowFlags_NoBringToFrontOnFocus;
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4, 2));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 2));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
 
   if (ImGui::Begin("StatusBar", NULL, flags)) {
@@ -1348,6 +1350,7 @@ void OSD::draw_status_bar() {
         ImGui::SameLine(0.0f, 10.0f);
       }
       bool active = (accessed & (1 << i));
+      ImGui::AlignTextToFramePadding();
       ImGui::Text("FD%d:", i + 1);
       ImVec2 text_min = ImGui::GetItemRectMin();
       ImVec2 text_max = ImGui::GetItemRectMax();
@@ -1368,6 +1371,23 @@ void OSD::draw_status_bar() {
       // Reserve layout width/height in the same line after custom draw.
       ImGui::Dummy(ImVec2(lamp_size, text_max.y - text_min.y));
     }
+
+    // Volume slider (right of FD1).
+    ImGui::SameLine(0.0f, 16.0f);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted((const char*)Lang::VolumeLabel);
+    ImGui::SameLine(0.0f, 4.0f);
+    ImGui::PushItemWidth(100.0f);
+    int vol = config.master_volume;
+    if (ImGui::SliderInt("##master_volume", &vol, 0, 100, "%d%%")) {
+      if (vol < 0) vol = 0;
+      if (vol > 100) vol = 100;
+      config.master_volume = vol;
+      if (audio_stream) {
+        (void)SDL_SetAudioStreamGain(audio_stream, config.master_volume / 100.0f);
+      }
+    }
+    ImGui::PopItemWidth();
 
     uint64_t now_tick = SDL_GetTicks();
 
@@ -1419,16 +1439,18 @@ void OSD::draw_status_bar() {
       speed_text[0] = '\0';
     }
 
-    float right = ImGui::GetWindowWidth() - 8.0f;
+    float right = ImGui::GetWindowWidth() - 12.0f;
 
     float fps_w = ImGui::CalcTextSize(fps_text).x;
     ImGui::SameLine(right - fps_w);
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("%s", fps_text);
     right -= (fps_w + 16.0f);
 
     if (clock_text[0] != '\0') {
       float clock_w = ImGui::CalcTextSize(clock_text).x;
       ImGui::SameLine(right - clock_w);
+      ImGui::AlignTextToFramePadding();
       ImGui::Text("%s", clock_text);
       right -= (clock_w + 16.0f);
     }
@@ -1436,6 +1458,7 @@ void OSD::draw_status_bar() {
     if (speed_text[0] != '\0') {
       float speed_w = ImGui::CalcTextSize(speed_text).x;
       ImGui::SameLine(right - speed_w);
+      ImGui::AlignTextToFramePadding();
       if (config.full_speed) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "%s", speed_text);
       } else {

@@ -183,6 +183,7 @@ typedef struct {
 	// sound
 	int sound_frequency;
 	int sound_latency;
+	int master_volume; // 0..100
 	bool sound_strict_rendering;
 	bool sound_mute_fm;
 	bool sound_mute_ssg;
