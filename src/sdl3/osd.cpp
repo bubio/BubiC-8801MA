@@ -21,7 +21,11 @@ namespace fs = std::filesystem;
 // Localization
 enum class Language {
   ENGLISH,
-  JAPANESE
+  JAPANESE,
+  CHINESE,
+  KOREAN,
+  SPANISH,
+  FRENCH
 };
 
 static Language current_lang = Language::ENGLISH;
@@ -29,59 +33,70 @@ static Language current_lang = Language::ENGLISH;
 struct Msg {
   const char* en;
   const char* jp;
+  const char* zh;
+  const char* ko;
+  const char* es;
+  const char* fr;
   operator const char*() const {
-    return (current_lang == Language::JAPANESE) ? jp : en;
+    switch (current_lang) {
+      case Language::JAPANESE: return jp;
+      case Language::CHINESE:  return zh;
+      case Language::KOREAN:   return ko;
+      case Language::SPANISH:  return es;
+      case Language::FRENCH:   return fr;
+      default:                 return en;
+    }
   }
 };
 
 namespace Lang {
-  static constexpr Msg Control = {"Control", "コントロール"};
-  static constexpr Msg Reset = {"Reset", "リセット"};
-  static constexpr Msg FullSpeed = {"Full Speed", "フルスピード"};
-  static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換"};
-  static constexpr Msg SaveState = {"Save State", "状態保存"};
-  static constexpr Msg LoadState = {"Load State", "状態復元"};
-  static constexpr Msg NoData = {"(No Data)", "(データなし)"};
-  static constexpr Msg Exit = {"Exit", "終了"};
-  static constexpr Msg Insert = {"Insert", "挿入"};
-  static constexpr Msg Eject = {"Eject", "取り出し"};
-  static constexpr Msg InsertBlank2D = {"Insert Blank 2D Disk", "空の2Dディスクを挿入"};
-  static constexpr Msg InsertBlank2HD = {"Insert Blank 2HD Disk", "空の2HDディスクを挿入"};
-  static constexpr Msg WriteProtected = {"Write Protected", "書き込み禁止"};
-  static constexpr Msg CorrectTiming = {"Correct Timing", "正確なタイミング"};
-  static constexpr Msg IgnoreCRC = {"Ignore CRC Errors", "CRCエラーを無視"};
-  static constexpr Msg ImageN = {"Image %d", "イメージ %d"};
-  static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)"};
-  static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク"};
-  static constexpr Msg Device = {"Device", "デバイス"};
-  static constexpr Msg Boot = {"Boot", "起動モード"};
-  static constexpr Msg CPU = {"CPU", "CPU"};
-  static constexpr Msg Sound = {"Sound", "サウンド"};
-  static constexpr Msg Display = {"Display", "表示"};
-  static constexpr Msg HighResolution = {"High Resolution", "高解像度"};
-  static constexpr Msg Standard = {"Standard", "標準"};
-  static constexpr Msg ScanlineAuto = {"Set Scanline Automatically", "スキャンライン自動設定"};
-  static constexpr Msg Scanline = {"Scanline", "スキャンライン"};
-  static constexpr Msg IgnorePalette = {"Ignore Palette Changed", "パレット変更を無視"};
-  static constexpr Msg Host = {"Host", "ホスト"};
-  static constexpr Msg Screen = {"Screen", "画面"};
-  static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン"};
-  static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存..."};
-  static constexpr Msg Keyboard = {"Keyboard", "キーボード"};
-  static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当"};
-  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当"};
-  static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数"};
-  static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ"};
-  static constexpr Msg MuteFM = {"Mute FM", "FM消音"};
-  static constexpr Msg MuteSSG = {"Mute SSG", "SSG消音"};
-  static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音"};
-  static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音"};
-  static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ..."};
-  static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g"};
-  static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d"};
-  static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード"};
-  static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f"};
-  static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f"};
+  static constexpr Msg Control = {"Control", "コントロール", "控制", "컨트롤", "Control", "Contrôle"};
+  static constexpr Msg Reset = {"Reset", "リセット", "重置", "초기화", "Reiniciar", "Réinitialiser"};
+  static constexpr Msg FullSpeed = {"Full Speed", "フルスピード", "全速", "최고 속도", "Velocidad máxima", "Vitesse maximale"};
+  static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換", "罗马字转假名", "로마자 카나 변환", "Romaji a Kana", "Romaji vers Kana"};
+  static constexpr Msg SaveState = {"Save State", "状態保存", "保存存档", "상태 저장", "Guardar estado", "Sauvegarder l'état"};
+  static constexpr Msg LoadState = {"Load State", "状態復元", "读取存档", "상태 불러오기", "Cargar estado", "Charger l'état"};
+  static constexpr Msg NoData = {"(No Data)", "(データなし)", "(无数据)", "(데이터 없음)", "(Sin datos)", "(Aucune donnée)"};
+  static constexpr Msg Exit = {"Exit", "終了", "退出", "종료", "Salir", "Quitter"};
+  static constexpr Msg Insert = {"Insert", "挿入", "插入", "삽입", "Insertar", "Insérer"};
+  static constexpr Msg Eject = {"Eject", "取り出し", "弹出", "꺼내기", "Expulsar", "Éjecter"};
+  static constexpr Msg InsertBlank2D = {"Insert Blank 2D Disk", "空の2Dディスクを挿入", "插入空白2D磁盘", "빈 2D 디스크 삽입", "Insertar disco 2D en blanco", "Insérer un disque 2D vierge"};
+  static constexpr Msg InsertBlank2HD = {"Insert Blank 2HD Disk", "空の2HDディスクを挿入", "插入空白2HD磁盘", "빈 2HD 디스크 삽입", "Insertar disco 2HD en blanco", "Insérer un disque 2HD vierge"};
+  static constexpr Msg WriteProtected = {"Write Protected", "書き込み禁止", "写保护", "쓰기 금지", "Protección contra escritura", "Protégé en écriture"};
+  static constexpr Msg CorrectTiming = {"Correct Timing", "正確なタイミング", "精确时序", "정확한 타이밍", "Temporización correcta", "Synchronisation précise"};
+  static constexpr Msg IgnoreCRC = {"Ignore CRC Errors", "CRCエラーを無視", "忽略CRC错误", "CRC 오류 무시", "Ignorar errores CRC", "Ignorer les erreurs CRC"};
+  static constexpr Msg ImageN = {"Image %d", "イメージ %d", "镜像 %d", "이미지 %d", "Imagen %d", "Image %d"};
+  static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)", "(未插入磁盘)", "(디스크 없음)", "(Sin disco)", "(Aucun disque)"};
+  static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク", "最近使用的磁盘", "최근 사용한 디스크", "Discos recientes", "Disques récents"};
+  static constexpr Msg Device = {"Device", "デバイス", "设备", "장치", "Dispositivo", "Appareil"};
+  static constexpr Msg Boot = {"Boot", "起動モード", "启动模式", "부팅 모드", "Modo de inicio", "Mode de démarrage"};
+  static constexpr Msg CPU = {"CPU", "CPU", "处理器", "CPU", "CPU", "Processeur"};
+  static constexpr Msg Sound = {"Sound", "サウンド", "声音", "사운드", "Sonido", "Son"};
+  static constexpr Msg Display = {"Display", "表示", "显示", "디ス플레이", "Pantalla", "Affichage"};
+  static constexpr Msg HighResolution = {"High Resolution", "高解像度", "高分辨率", "고해상度", "Alta resolución", "Haute résolution"};
+  static constexpr Msg Standard = {"Standard", "標準", "标准", "표준", "Estándar", "Standard"};
+  static constexpr Msg ScanlineAuto = {"Set Scanline Automatically", "スキャンライン自動設定", "自动设置扫描线", "스캔라인 자동 설정", "Ajustar líneas de escaneo automáticamente", "Régler les lignes de balayage automatiquement"};
+  static constexpr Msg Scanline = {"Scanline", "スキャンライン", "扫描线", "スキャンライン", "Líneas de escaneo", "Lignes de balayage"};
+  static constexpr Msg IgnorePalette = {"Ignore Palette Changed", "パレット変更を無視", "忽略调色板更改", "팔레트 변경 무시", "Ignorar cambios de paleta", "Ignorer les changements de palette"};
+  static constexpr Msg Host = {"Host", "ホスト", "主机", "호스트", "Host", "Hôte"};
+  static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran"};
+  static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran"};
+  static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存...", "保存截图...", "스크린샷 저장...", "Guardar captura de pantalla...", "Enregistrer une capture d'écran..."};
+  static constexpr Msg Keyboard = {"Keyboard", "キーボード", "键盘", "키보드", "Teclado", "Clavier"};
+  static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique"};
+  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드に 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
+  static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数", "采样率", "샘플링 주파수", "Frecuencia de muestreo", "Fréquence d'échantillonnage"};
+  static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ", "音频延迟", "오디오 지연", "Latencia de audio", "Latence audio"};
+  static constexpr Msg MuteFM = {"Mute FM", "FM消音", "FM静音", "FM 음소거", "Silenciar FM", "Couper le son FM"};
+  static constexpr Msg MuteSSG = {"Mute SSG", "SSG消音", "SSG静音", "SSG 음소거", "Silenciar SSG", "Couper le son SSG"};
+  static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音", "ADPCM静音", "ADPCM 음소거", "Silenciar ADPCM", "Couper le son ADPCM"};
+  static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音", "节奏音静音", "리듬 음소거", "Silenciar ritmo", "Couper le son du rythme"};
+  static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ...", "导出内存...", "메모리 덤프...", "Volcar memoria...", "Vider la mémoire..."};
+  static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g"};
+  static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d"};
+  static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード", "全速", "최고 속도", "VELOCIDAD MÁXIMA", "VITESSE MAXIMALE"};
+  static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f"};
+  static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f"};
 }
 
 // Get user home directory
@@ -411,10 +426,28 @@ void OSD::initialize(int rate, int samples) {
   SDL_Locale **locales = SDL_GetPreferredLocales(&locale_count);
   if (locales) {
     for (int i = 0; i < locale_count; i++) {
-      OSD_LOG("Preferred locale: %s_%s", locales[i]->language, locales[i]->country);
-      if (locales[i]->language && std::string(locales[i]->language) == "ja") {
+      if (!locales[i]->language) continue;
+      std::string lang = locales[i]->language;
+      OSD_LOG("Preferred locale: %s", lang.c_str());
+      if (lang == "ja") {
         current_lang = Language::JAPANESE;
         OSD_LOG("Switching UI language to Japanese");
+        break;
+      } else if (lang == "zh") {
+        current_lang = Language::CHINESE;
+        OSD_LOG("Switching UI language to Chinese");
+        break;
+      } else if (lang == "ko") {
+        current_lang = Language::KOREAN;
+        OSD_LOG("Switching UI language to Korean");
+        break;
+      } else if (lang == "es") {
+        current_lang = Language::SPANISH;
+        OSD_LOG("Switching UI language to Spanish");
+        break;
+      } else if (lang == "fr") {
+        current_lang = Language::FRENCH;
+        OSD_LOG("Switching UI language to French");
         break;
       }
     }
@@ -1339,7 +1372,7 @@ void OSD::draw_status_bar() {
     char view_text[64], core_text[64];
     snprintf(view_text, sizeof(view_text), (const char*)Lang::FPSView, current_fps);
     snprintf(core_text, sizeof(core_text), (const char*)Lang::FPSCore, emu_fps);
-    snprintf(fps_text, sizeof(fps_text), "FPS: %s  %s", view_text, core_text);
+    snprintf(fps_text, sizeof(fps_text), "%s  %s", view_text, core_text);
 
     char clock_text[64] = "";
     const char *boot_str = "";
@@ -1470,8 +1503,8 @@ void OSD::initialize_imgui() {
   const float ui_scale = 1.0f;
   OSD_LOG("ImGui UI scale = %.2f", ui_scale);
 
-  // Load Japanese font - Search in common locations across macOS, Windows, and Linux
-  OSD_LOG("Starting font search...");
+  // Load CJK font if needed - Search in common locations across macOS, Windows, and Linux
+  OSD_LOG("Starting CJK font search...");
   ImFont* font = NULL;
   const float font_size = 18.0f;
   const std::vector<std::string> font_paths = {
@@ -1480,49 +1513,54 @@ void OSD::initialize_imgui() {
     "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
     "/System/Library/Fonts/Supplemental/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
     // Windows
     "C:\\Windows\\Fonts\\msgothic.ttc",
     "C:\\Windows\\Fonts\\msmincho.ttc",
     "C:\\Windows\\Fonts\\meiryo.ttc",
+    "C:\\Windows\\Fonts\\simsun.ttc",
+    "C:\\Windows\\Fonts\\malgun.ttf",
     // Linux
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/takao-gothic/TakaoPGothic.ttf",
-    "/usr/share/fonts/truetype/vlgothic/VL-PGothic-Regular.ttf"
+    "/usr/share/fonts/truetype/vlgothic/VL-PGothic-Regular.ttf",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
   };
+
+  const ImWchar* glyph_ranges = io.Fonts->GetGlyphRangesDefault();
+  if (current_lang == Language::JAPANESE) {
+    glyph_ranges = io.Fonts->GetGlyphRangesJapanese();
+  } else if (current_lang == Language::CHINESE) {
+    glyph_ranges = io.Fonts->GetGlyphRangesChineseFull();
+  } else if (current_lang == Language::KOREAN) {
+    glyph_ranges = io.Fonts->GetGlyphRangesKorean();
+  }
 
   OSD_LOG("Will check %zu font paths", font_paths.size());
   int path_index = 0;
   for (const auto& path : font_paths) {
-    OSD_LOG("[%d] Checking: %s", path_index, path.c_str());
     bool exists = false;
     try {
       exists = fs::exists(path);
-      OSD_LOG("[%d] fs::exists returned %d", path_index, exists);
-    } catch (const std::exception& e) {
-      OSD_LOG("[%d] fs::exists threw std::exception: %s", path_index, e.what());
-      path_index++;
-      continue;
     } catch (...) {
-      OSD_LOG("[%d] fs::exists threw unknown exception", path_index);
       path_index++;
       continue;
     }
     if (exists) {
-      OSD_LOG("[%d] Loading font...", path_index);
-      font = io.Fonts->AddFontFromFileTTF(path.c_str(), font_size, NULL, io.Fonts->GetGlyphRangesJapanese());
+      OSD_LOG("[%d] Loading CJK font: %s", path_index, path.c_str());
+      font = io.Fonts->AddFontFromFileTTF(path.c_str(), font_size, NULL, glyph_ranges);
       if (font) {
         OSD_LOG("[%d] Font loaded successfully!", path_index);
         break;
-      } else {
-        OSD_LOG("[%d] AddFontFromFileTTF returned NULL", path_index);
       }
     }
     path_index++;
   }
 
   if (!font) {
-    OSD_LOG("No Japanese font found, using default font");
+    OSD_LOG("No suitable CJK font found, using default font");
     ImFontConfig cfg;
     cfg.SizePixels = 13.0f;
     io.Fonts->AddFontDefault(&cfg);

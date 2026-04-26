@@ -30,6 +30,10 @@
 	<array>
 		<string>en</string>
 		<string>ja</string>
+		<string>zh</string>
+		<string>ko</string>
+		<string>es</string>
+		<string>fr</string>
 	</array>
 </dict>
 </plist>
