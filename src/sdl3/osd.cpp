@@ -18,6 +18,72 @@
 
 namespace fs = std::filesystem;
 
+// Localization
+enum class Language {
+  ENGLISH,
+  JAPANESE
+};
+
+static Language current_lang = Language::ENGLISH;
+
+struct Msg {
+  const char* en;
+  const char* jp;
+  operator const char*() const {
+    return (current_lang == Language::JAPANESE) ? jp : en;
+  }
+};
+
+namespace Lang {
+  static constexpr Msg Control = {"Control", "コントロール"};
+  static constexpr Msg Reset = {"Reset", "リセット"};
+  static constexpr Msg FullSpeed = {"Full Speed", "フルスピード"};
+  static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換"};
+  static constexpr Msg SaveState = {"Save State", "状態保存"};
+  static constexpr Msg LoadState = {"Load State", "状態復元"};
+  static constexpr Msg NoData = {"(No Data)", "(データなし)"};
+  static constexpr Msg Exit = {"Exit", "終了"};
+  static constexpr Msg Insert = {"Insert", "挿入"};
+  static constexpr Msg Eject = {"Eject", "取り出し"};
+  static constexpr Msg InsertBlank2D = {"Insert Blank 2D Disk", "空の2Dディスクを挿入"};
+  static constexpr Msg InsertBlank2HD = {"Insert Blank 2HD Disk", "空の2HDディスクを挿入"};
+  static constexpr Msg WriteProtected = {"Write Protected", "書き込み禁止"};
+  static constexpr Msg CorrectTiming = {"Correct Timing", "正確なタイミング"};
+  static constexpr Msg IgnoreCRC = {"Ignore CRC Errors", "CRCエラーを無視"};
+  static constexpr Msg ImageN = {"Image %d", "イメージ %d"};
+  static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)"};
+  static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク"};
+  static constexpr Msg Device = {"Device", "デバイス"};
+  static constexpr Msg Boot = {"Boot", "起動モード"};
+  static constexpr Msg CPU = {"CPU", "CPU"};
+  static constexpr Msg Sound = {"Sound", "サウンド"};
+  static constexpr Msg Display = {"Display", "表示"};
+  static constexpr Msg HighResolution = {"High Resolution", "高解像度"};
+  static constexpr Msg Standard = {"Standard", "標準"};
+  static constexpr Msg ScanlineAuto = {"Set Scanline Automatically", "スキャンライン自動設定"};
+  static constexpr Msg Scanline = {"Scanline", "スキャンライン"};
+  static constexpr Msg IgnorePalette = {"Ignore Palette Changed", "パレット変更を無視"};
+  static constexpr Msg Host = {"Host", "ホスト"};
+  static constexpr Msg Screen = {"Screen", "画面"};
+  static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン"};
+  static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存..."};
+  static constexpr Msg Keyboard = {"Keyboard", "キーボード"};
+  static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当"};
+  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当"};
+  static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数"};
+  static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ"};
+  static constexpr Msg MuteFM = {"Mute FM", "FM消音"};
+  static constexpr Msg MuteSSG = {"Mute SSG", "SSG消音"};
+  static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音"};
+  static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音"};
+  static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ..."};
+  static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g"};
+  static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d"};
+  static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード"};
+  static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f"};
+  static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f"};
+}
+
 // Get user home directory
 static std::string get_home_directory() {
 #ifdef _WIN32
@@ -145,10 +211,10 @@ static const _TCHAR* utf8_path_to_tchar(const char* utf8) {
 static std::string nfd_to_nfc(const std::string& input) {
     CFStringRef cf_input = CFStringCreateWithCString(kCFAllocatorDefault, input.c_str(), kCFStringEncodingUTF8);
     if (!cf_input) return input;
-    
+
     CFMutableStringRef cf_mutable = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, cf_input);
     CFStringNormalize(cf_mutable, kCFStringNormalizationFormC);
-    
+
     char buffer[1024];
     if (CFStringGetCString(cf_mutable, buffer, sizeof(buffer), kCFStringEncodingUTF8)) {
         std::string result(buffer);
@@ -156,7 +222,7 @@ static std::string nfd_to_nfc(const std::string& input) {
         CFRelease(cf_mutable);
         return result;
     }
-    
+
     CFRelease(cf_input);
     CFRelease(cf_mutable);
     return input;
@@ -223,14 +289,14 @@ static int get_disk_names(const char* path, int drv, EMU* emu) {
     fio.Fseek(offset, FILEIO_SEEK_SET);
     fio.Fread(name_buf, 17, 1);
     name_buf[17] = '\0';
-    
+
     // Convert to wide char or keep as is depending on platform
     sjis_to_utf8(name_buf, emu->d88_file[drv].disk_name[count], sizeof(emu->d88_file[drv].disk_name[count]));
 
     fio.Fseek(offset + 0x1c, FILEIO_SEEK_SET);
     uint32_t disk_size = fio.FgetUint32_LE();
     if (disk_size == 0) break;
-    
+
     offset += disk_size;
     count++;
   }
@@ -299,7 +365,7 @@ OSD::~OSD() {
 
 static void add_recent_disk(const _TCHAR* path, int drv) {
   if (!path || path[0] == _T('\0') || drv >= USE_FLOPPY_DISK) return;
-  
+
   // 入力ポインタが自身の配列内を指している場合に備え、一時バッファにコピー
   _TCHAR new_path[_MAX_PATH];
   my_tcscpy_s(new_path, _MAX_PATH, path);
@@ -308,7 +374,7 @@ static void add_recent_disk(const _TCHAR* path, int drv) {
   int write_idx = 0;
   for (int read_idx = 0; read_idx < MAX_HISTORY; read_idx++) {
     if (config.recent_floppy_disk_path[drv][read_idx][0] == _T('\0')) break;
-    
+
     // 同じパスでなければ残す
     if (_tcsicmp(config.recent_floppy_disk_path[drv][read_idx], new_path) != 0) {
       if (write_idx != read_idx) {
@@ -339,6 +405,21 @@ void OSD::initialize(int rate, int samples) {
     return;
   }
   OSD_LOG("SDL_Init succeeded");
+
+  // Detect system language
+  int locale_count = 0;
+  SDL_Locale **locales = SDL_GetPreferredLocales(&locale_count);
+  if (locales) {
+    for (int i = 0; i < locale_count; i++) {
+      OSD_LOG("Preferred locale: %s_%s", locales[i]->language, locales[i]->country);
+      if (locales[i]->language && std::string(locales[i]->language) == "ja") {
+        current_lang = Language::JAPANESE;
+        OSD_LOG("Switching UI language to Japanese");
+        break;
+      }
+    }
+    SDL_free(locales);
+  }
 
   // Open first available joystick
   OSD_LOG("Checking joysticks...");
@@ -940,14 +1021,14 @@ void OSD::update_window_scale() {
   int idx = config.window_scale_idx;
   if (idx < 0 || idx > 4) idx = 2;
   float scale = scales[idx];
-  
+
   // Get current UI heights (they are not scaled)
   float menu_height = show_menu ? 20.0f : 0.0f; // Approx before frame
   float status_height = 24.0f;
 
   window_width = (int)(640 * scale);
   window_height = (int)(400 * scale + menu_height + status_height);
-  
+
   SDL_SetWindowSize(window, window_width, window_height);
 }
 
@@ -965,7 +1046,7 @@ int OSD::draw_screen() {
       last_fps_tick = current_tick;
       frame_count = 0;
     }
-  
+
 
 
 
@@ -1006,7 +1087,7 @@ int OSD::draw_screen() {
 
   SDL_RenderClear(renderer);
 
-  
+
 
     if (!imgui_initialized) {
       static int warn_count = 0;
@@ -1021,22 +1102,22 @@ int OSD::draw_screen() {
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
-    
+
       bool is_fullscreen = (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN);
-    
+
     ImGuiIO &io = ImGui::GetIO();
     float fb_scale_x = io.DisplayFramebufferScale.x;
     float fb_scale_y = io.DisplayFramebufferScale.y;
     if (fb_scale_x <= 0.0f) fb_scale_x = 1.0f;
     if (fb_scale_y <= 0.0f) fb_scale_y = 1.0f;
     SDL_SetRenderScale(renderer, fb_scale_x, fb_scale_y);
-  
+
     // Determine if UI should be visible
-    bool ui_visible = !is_fullscreen || 
-                      (current_tick - last_ui_interaction_tick < 5000) || 
+    bool ui_visible = !is_fullscreen ||
+                      (current_tick - last_ui_interaction_tick < 5000) ||
                       ImGui::IsPopupOpen((const char*)NULL, ImGuiPopupFlags_AnyPopupId) ||
                       io.WantCaptureKeyboard;
-  
+
       if (ui_visible) {
         last_ui_interaction_tick = (ImGui::IsAnyItemActive() || ImGui::IsAnyItemHovered()) ? current_tick : last_ui_interaction_tick;
         SDL_ShowCursor();
@@ -1077,13 +1158,13 @@ int OSD::draw_screen() {
     if (ui_visible) {
       draw_status_bar();
     }
-  
+
     // VM Screen Scaling
     static const float scales[] = { 1.0f, 1.5f, 2.0f, 2.5f, 3.0f };
     int idx = config.window_scale_idx;
     if (idx < 0 || idx > 4) idx = 2;
     float scale = scales[idx];
-  
+
       int current_w, current_h;
       SDL_GetWindowSize(window, &current_w, &current_h);
         if (is_fullscreen) {
@@ -1113,7 +1194,7 @@ int OSD::draw_screen() {
       scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
       if (scale < 0.1f) scale = 0.1f;
     }
-  
+
     // VMの画面を描画（フルスクリーン時は画面中央に配置）
     float draw_w = 640.0f * scale;
     float draw_h = 400.0f * scale;
@@ -1129,10 +1210,10 @@ int OSD::draw_screen() {
         draw_y = menu_height + (content_h - draw_h) / 2.0f;
       }
     }
-  
+
     SDL_FRect dest_rect = { draw_x, draw_y, draw_w, draw_h };
     SDL_RenderTexture(renderer, screen_texture, NULL, &dest_rect);
-  
+
     process_pending_insert();
     process_pending_save();
     process_pending_screenshot();
@@ -1156,8 +1237,8 @@ int OSD::draw_screen() {
     ui_interacting = next_ui_interacting;
     ui_interacting_reason = next_reason;
     prev_ui_interacting = next_ui_interacting;
-  
-    
+
+
 
 
   ImGui::Render();
@@ -1202,22 +1283,22 @@ void OSD::draw_status_bar() {
   const float status_height = 24.0f;
   ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - status_height));
   ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, status_height));
-  
-  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | 
-                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse | 
-                           ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | 
+
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse |
+                           ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
                            ImGuiWindowFlags_NoBringToFrontOnFocus;
-  
+
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4, 2));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
-  
+
   if (ImGui::Begin("StatusBar", NULL, flags)) {
     // Disk Access Lamps
     uint32_t accessed = 0;
     if (vm) {
       accessed = ((VM*)vm)->is_floppy_disk_accessed();
     }
-    
+
     for (int i = 1; i >= 0; i--) {
       if (i != 1) {
         ImGui::SameLine(0.0f, 10.0f);
@@ -1243,7 +1324,7 @@ void OSD::draw_status_bar() {
       // Reserve layout width/height in the same line after custom draw.
       ImGui::Dummy(ImVec2(lamp_size, text_max.y - text_min.y));
     }
-    
+
     uint64_t now_tick = SDL_GetTicks();
 
     // Right-aligned metrics (avoid overlap regardless of text length).
@@ -1255,8 +1336,10 @@ void OSD::draw_status_bar() {
     }
 
     char fps_text[128];
-    snprintf(fps_text, sizeof(fps_text), "Render: %.1f  Emu: %.1f", current_fps,
-             emu_fps);
+    char view_text[64], core_text[64];
+    snprintf(view_text, sizeof(view_text), (const char*)Lang::FPSView, current_fps);
+    snprintf(core_text, sizeof(core_text), (const char*)Lang::FPSCore, emu_fps);
+    snprintf(fps_text, sizeof(fps_text), "%s  %s", view_text, core_text);
 
     char clock_text[64] = "";
     const char *boot_str = "";
@@ -1282,12 +1365,12 @@ void OSD::draw_status_bar() {
 
     char speed_text[64];
     if (config.full_speed) {
-      snprintf(speed_text, sizeof(speed_text), "FULL SPEED");
+      snprintf(speed_text, sizeof(speed_text), "%s", (const char*)Lang::FullSpeedLabel);
     } else if (config.cpu_power != 1.0f) {
       if (config.cpu_power < 1.0f)
-        snprintf(speed_text, sizeof(speed_text), "Speed: x%.2g", config.cpu_power);
+        snprintf(speed_text, sizeof(speed_text), (const char*)Lang::SpeedLabel, config.cpu_power);
       else
-        snprintf(speed_text, sizeof(speed_text), "Speed: x%d", (int)config.cpu_power);
+        snprintf(speed_text, sizeof(speed_text), (const char*)Lang::SpeedLabelInt, (int)config.cpu_power);
     } else {
       speed_text[0] = '\0';
     }
@@ -1316,7 +1399,7 @@ void OSD::draw_status_bar() {
       }
       right -= (speed_w + 24.0f);
     }
-    
+
     ImGui::End();
   }
   ImGui::PopStyleColor();
@@ -1472,9 +1555,9 @@ void OSD::release_imgui() {
 
 bool OSD::draw_menu_contents() {
     bool menu_tree_open = false;
-    if (ImGui::BeginMenu("Control")) {
+    if (ImGui::BeginMenu(Lang::Control)) {
       menu_tree_open = true;
-      if (ImGui::MenuItem("Reset")) {
+      if (ImGui::MenuItem(Lang::Reset)) {
         if (emu) emu->reset();
       }
       ImGui::Separator();
@@ -1485,11 +1568,11 @@ bool OSD::draw_menu_contents() {
       if (ImGui::MenuItem("CPU x4", NULL, config.cpu_power == 4.0f)) { config.cpu_power = 4.0f; if(vm) vm->update_config(); }
       if (ImGui::MenuItem("CPU x8", NULL, config.cpu_power == 8.0f)) { config.cpu_power = 8.0f; if(vm) vm->update_config(); }
       if (ImGui::MenuItem("CPU x16", NULL, config.cpu_power == 16.0f)) { config.cpu_power = 16.0f; if(vm) vm->update_config(); }
-      if (ImGui::MenuItem("Full Speed", NULL, config.full_speed)) { config.full_speed = !config.full_speed; }
+      if (ImGui::MenuItem(Lang::FullSpeed, NULL, config.full_speed)) { config.full_speed = !config.full_speed; }
       ImGui::Separator();
-      if (ImGui::MenuItem("Romaji to Kana", NULL, config.romaji_to_kana)) { config.romaji_to_kana = !config.romaji_to_kana; }
+      if (ImGui::MenuItem(Lang::RomajiToKana, NULL, config.romaji_to_kana)) { config.romaji_to_kana = !config.romaji_to_kana; }
       ImGui::Separator();
-      if (ImGui::BeginMenu("Save State")) {
+      if (ImGui::BeginMenu(Lang::SaveState)) {
         for(int i=0; i<10; i++) {
           const _TCHAR* path = emu->state_file_path(i);
           char label[64];
@@ -1502,13 +1585,13 @@ bool OSD::draw_menu_contents() {
             std::strftime(time_str, sizeof(time_str), "%Y/%m/%d %H:%M:%S", local_t);
             snprintf(label, sizeof(label), "%d: %s", i, time_str);
           } else {
-            snprintf(label, sizeof(label), "%d: (No Data)", i);
+            snprintf(label, sizeof(label), "%d: %s", i, (const char*)Lang::NoData);
           }
           if(ImGui::MenuItem(label)) { if(emu) emu->save_state(path); }
         }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("Load State")) {
+      if (ImGui::BeginMenu(Lang::LoadState)) {
         for(int i=0; i<10; i++) {
           const _TCHAR* path = emu->state_file_path(i);
           char label[64];
@@ -1522,14 +1605,14 @@ bool OSD::draw_menu_contents() {
             std::strftime(time_str, sizeof(time_str), "%Y/%m/%d %H:%M:%S", local_t);
             snprintf(label, sizeof(label), "%d: %s", i, time_str);
           } else {
-            snprintf(label, sizeof(label), "%d: (No Data)", i);
+            snprintf(label, sizeof(label), "%d: %s", i, (const char*)Lang::NoData);
           }
           if(ImGui::MenuItem(label, NULL, false, exists)) { if(emu) emu->load_state(path); }
         }
         ImGui::EndMenu();
       }
       ImGui::Separator();
-      if (ImGui::MenuItem("Exit")) {
+      if (ImGui::MenuItem(Lang::Exit)) {
         terminated = true;
       }
       ImGui::EndMenu();
@@ -1538,14 +1621,14 @@ bool OSD::draw_menu_contents() {
     for (int drv = 0; drv < 2; drv++) {
       char menu_label[16];
       snprintf(menu_label, sizeof(menu_label), drv == 0 ? "FD1" : "FD2");
-      
+
       if (ImGui::BeginMenu(menu_label)) {
         menu_tree_open = true;
-        if (ImGui::MenuItem("Insert")) { select_file(drv); }
-        if (ImGui::MenuItem("Eject")) { 
+        if (ImGui::MenuItem(Lang::Insert)) { select_file(drv); }
+        if (ImGui::MenuItem(Lang::Eject)) {
           if (vm) {
             vm->is_floppy_disk_protected(drv, false); // Clear write protect on eject
-            vm->close_floppy_disk(drv); 
+            vm->close_floppy_disk(drv);
           }
           if (drv == 0) fd1_path[0] = '\0'; else fd2_path[0] = '\0';
           if (emu) {
@@ -1553,23 +1636,23 @@ bool OSD::draw_menu_contents() {
             emu->d88_file[drv].path[0] = '\0';
           }
         }
-        if (ImGui::MenuItem("Insert Blank 2D Disk")) { select_save_file(drv, 0x00); }
-        if (ImGui::MenuItem("Insert Blank 2HD Disk")) { select_save_file(drv, 0x20); }
+        if (ImGui::MenuItem(Lang::InsertBlank2D)) { select_save_file(drv, 0x00); }
+        if (ImGui::MenuItem(Lang::InsertBlank2HD)) { select_save_file(drv, 0x20); }
         ImGui::Separator(); // ----
         bool inserted = (vm && vm->is_floppy_disk_inserted(drv));
-        if (ImGui::MenuItem("Write Protected", NULL, (vm && vm->is_floppy_disk_protected(drv)), inserted)) {
+        if (ImGui::MenuItem(Lang::WriteProtected, NULL, (vm && vm->is_floppy_disk_protected(drv)), inserted)) {
           if(vm) vm->is_floppy_disk_protected(drv, !vm->is_floppy_disk_protected(drv));
         }
-        if (ImGui::MenuItem("Correct Timing", NULL, config.correct_disk_timing[drv])) {
+        if (ImGui::MenuItem(Lang::CorrectTiming, NULL, config.correct_disk_timing[drv])) {
           config.correct_disk_timing[drv] = !config.correct_disk_timing[drv];
           if(vm) vm->update_config();
         }
-        if (ImGui::MenuItem("Ignore CRC Errors", NULL, config.ignore_disk_crc[drv])) {
+        if (ImGui::MenuItem(Lang::IgnoreCRC, NULL, config.ignore_disk_crc[drv])) {
           config.ignore_disk_crc[drv] = !config.ignore_disk_crc[drv];
           if(vm) vm->update_config();
         }
         ImGui::Separator(); // ----
-        
+
         if (emu && emu->floppy_disk_status[drv].path[0] != '\0') {
           // D88ファイル名を表示
           fs::path p(tchar_to_char(emu->floppy_disk_status[drv].path));
@@ -1585,7 +1668,7 @@ bool OSD::draw_menu_contents() {
               if (b_name[0] != '\0') {
                 snprintf(b_label, sizeof(b_label), "%s", tchar_to_char(b_name));
               } else {
-                snprintf(b_label, sizeof(b_label), "Image %d", b + 1);
+                snprintf(b_label, sizeof(b_label), (const char*)Lang::ImageN, b + 1);
               }
               if (ImGui::MenuItem(b_label, NULL, emu->d88_file[drv].cur_bank == b)) {
                 if (vm) vm->open_floppy_disk(drv, emu->d88_file[drv].path, b);
@@ -1595,16 +1678,16 @@ bool OSD::draw_menu_contents() {
             }
           }
         } else {
-          ImGui::TextDisabled("(No disk inserted)");
+          ImGui::TextDisabled("%s", (const char*)Lang::NoDiskInserted);
         }
 
         ImGui::Separator(); // ----
         // 最近使ったファイル（ドライブごとに独立）
-        if (ImGui::BeginMenu("Recent Disks")) {
+        if (ImGui::BeginMenu(Lang::RecentDisks)) {
           for (int i = 0; i < MAX_HISTORY; i++) {
             if (config.recent_floppy_disk_path[drv][i][0] == '\0') break;
             const _TCHAR* r_path = config.recent_floppy_disk_path[drv][i];
-            
+
             // 表示名はD88ファイル名のみ、ID衝突回避のために##indexを付加
             fs::path p(tchar_to_char(r_path));
             std::string filename_utf8 = path_to_utf8(p.filename());
@@ -1645,22 +1728,22 @@ bool OSD::draw_menu_contents() {
       }
     }
 
-    if (ImGui::BeginMenu("Device")) {
+    if (ImGui::BeginMenu(Lang::Device)) {
       menu_tree_open = true;
-      if (ImGui::BeginMenu("Boot")) {
+      if (ImGui::BeginMenu(Lang::Boot)) {
         if (ImGui::MenuItem("N88-V1(S) mode", NULL, config.boot_mode == 0)) { config.boot_mode = 0; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N88-V1(H) mode", NULL, config.boot_mode == 1)) { config.boot_mode = 1; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N88-V2 mode", NULL, config.boot_mode == 2)) { config.boot_mode = 2; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N mode", NULL, config.boot_mode == 3)) { config.boot_mode = 3; if(vm) vm->update_config(); } // Keep VM update if intended
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("CPU")) {
+      if (ImGui::BeginMenu(Lang::CPU)) {
         if (ImGui::MenuItem("Z80 8MHz", NULL, config.cpu_type == 0)) { config.cpu_type = 0; if(vm) vm->update_config(); }
         if (ImGui::MenuItem("Z80 4MHz", NULL, config.cpu_type == 1)) { config.cpu_type = 1; if(vm) vm->update_config(); }
         if (ImGui::MenuItem("Z80 8MHz (FE2/MC)", NULL, config.cpu_type == 2)) { config.cpu_type = 2; if(vm) vm->update_config(); }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("Sound")) {
+      if (ImGui::BeginMenu(Lang::Sound)) {
         bool is_opna = (config.sound_type == 0 || config.sound_type == 4 || config.sound_type == 5);
         if (ImGui::MenuItem("SOUND BOARD II", NULL, is_opna)) {
           config.sound_type = is_opna ? 1 : 0; // Toggle between OPNA(0) and OPN(1)
@@ -1668,25 +1751,25 @@ bool OSD::draw_menu_contents() {
         }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("Display")) {
-        if (ImGui::MenuItem("High Resolution", NULL, config.monitor_type == 0)) { config.monitor_type = 0; if(vm) vm->update_config(); }
-        if (ImGui::MenuItem("Standard", NULL, config.monitor_type == 1)) { config.monitor_type = 1; if(vm) vm->update_config(); }
+      if (ImGui::BeginMenu(Lang::Display)) {
+        if (ImGui::MenuItem(Lang::HighResolution, NULL, config.monitor_type == 0)) { config.monitor_type = 0; if(vm) vm->update_config(); }
+        if (ImGui::MenuItem(Lang::Standard, NULL, config.monitor_type == 1)) { config.monitor_type = 1; if(vm) vm->update_config(); }
         ImGui::Separator();
-        if (ImGui::MenuItem("Set Scanline Automatically", NULL, config.scan_line_auto)) { config.scan_line_auto = !config.scan_line_auto; if(vm) vm->update_config(); }
-        if (ImGui::MenuItem("Scanline", NULL, config.scan_line)) { config.scan_line = !config.scan_line; if(vm) vm->update_config(); }
+        if (ImGui::MenuItem(Lang::ScanlineAuto, NULL, config.scan_line_auto)) { config.scan_line_auto = !config.scan_line_auto; if(vm) vm->update_config(); }
+        if (ImGui::MenuItem(Lang::Scanline, NULL, config.scan_line)) { config.scan_line = !config.scan_line; if(vm) vm->update_config(); }
         ImGui::Separator();
-        if (ImGui::MenuItem("Ignore Palette Changed", NULL, (config.dipswitch & (1 << 5)) != 0)) { 
-          config.dipswitch ^= (1 << 5); if(vm) vm->update_config(); 
+        if (ImGui::MenuItem(Lang::IgnorePalette, NULL, (config.dipswitch & (1 << 5)) != 0)) {
+          config.dipswitch ^= (1 << 5); if(vm) vm->update_config();
         }
         ImGui::EndMenu();
       }
       ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("Host")) {
+    if (ImGui::BeginMenu(Lang::Host)) {
       menu_tree_open = true;
-      if (ImGui::BeginMenu("Screen")) {
-        if (ImGui::MenuItem("Fullscreen", NULL, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN))) {
+      if (ImGui::BeginMenu(Lang::Screen)) {
+        if (ImGui::MenuItem(Lang::Fullscreen, NULL, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN))) {
           if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) SDL_SetWindowFullscreen(window, false);
           else SDL_SetWindowFullscreen(window, true);
         }
@@ -1697,19 +1780,19 @@ bool OSD::draw_menu_contents() {
         if (ImGui::MenuItem("x2.5", NULL, config.window_scale_idx == 3)) { config.window_scale_idx = 3; update_window_scale(); }
         if (ImGui::MenuItem("x3.0", NULL, config.window_scale_idx == 4)) { config.window_scale_idx = 4; update_window_scale(); }
         ImGui::Separator();
-        if (ImGui::MenuItem("Save Screenshot...")) { show_screenshot_dialog(); }
+        if (ImGui::MenuItem(Lang::SaveScreenshot)) { show_screenshot_dialog(); }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("Keyboard")) {
-        if (ImGui::MenuItem("Map cursor keys to Numpad", NULL, config.cursor_as_numpad)) {
+      if (ImGui::BeginMenu(Lang::Keyboard)) {
+        if (ImGui::MenuItem(Lang::MapCursorToNumpad, NULL, config.cursor_as_numpad)) {
           config.cursor_as_numpad = !config.cursor_as_numpad;
         }
-        if (ImGui::MenuItem("Map number keys to Numpad", NULL, config.digit_as_numpad)) {
+        if (ImGui::MenuItem(Lang::MapDigitToNumpad, NULL, config.digit_as_numpad)) {
           config.digit_as_numpad = !config.digit_as_numpad;
         }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu("Sound")) {
+      if (ImGui::BeginMenu(Lang::Sound)) {
         static const int frequency_values[5] = {
             44100, 48000, 55467, 88200, 96000
         };
@@ -1737,7 +1820,7 @@ bool OSD::draw_menu_contents() {
           requested_audio_latency_ms = latency_values_ms[latency_index];
         }
 
-        if (ImGui::BeginMenu("Sampling Frequency")) {
+        if (ImGui::BeginMenu(Lang::SamplingFrequency)) {
           for (int i = 0; i < 5; i++) {
             if (ImGui::MenuItem(frequency_labels[i], NULL,
                                 config.sound_frequency == i)) {
@@ -1766,7 +1849,7 @@ bool OSD::draw_menu_contents() {
           }
           ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Audio Latency")) {
+        if (ImGui::BeginMenu(Lang::AudioLatency)) {
           for (int i = 0; i < 5; i++) {
             if (ImGui::MenuItem(latency_labels[i], NULL,
                                 config.sound_latency == i)) {
@@ -1796,22 +1879,22 @@ bool OSD::draw_menu_contents() {
           ImGui::EndMenu();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Mute FM", NULL, config.sound_mute_fm)) {
+        if (ImGui::MenuItem(Lang::MuteFM, NULL, config.sound_mute_fm)) {
           config.sound_mute_fm = !config.sound_mute_fm;
           if (vm)
             vm->update_mute();
         }
-        if (ImGui::MenuItem("Mute SSG", NULL, config.sound_mute_ssg)) {
+        if (ImGui::MenuItem(Lang::MuteSSG, NULL, config.sound_mute_ssg)) {
           config.sound_mute_ssg = !config.sound_mute_ssg;
           if (vm)
             vm->update_mute();
         }
-        if (ImGui::MenuItem("Mute ADPCM", NULL, config.sound_mute_adpcm)) {
+        if (ImGui::MenuItem(Lang::MuteADPCM, NULL, config.sound_mute_adpcm)) {
           config.sound_mute_adpcm = !config.sound_mute_adpcm;
           if (vm)
             vm->update_mute();
         }
-        if (ImGui::MenuItem("Mute Rhythm", NULL, config.sound_mute_rhythm)) {
+        if (ImGui::MenuItem(Lang::MuteRhythm, NULL, config.sound_mute_rhythm)) {
           config.sound_mute_rhythm = !config.sound_mute_rhythm;
           if (vm)
             vm->update_mute();
@@ -1819,7 +1902,7 @@ bool OSD::draw_menu_contents() {
         ImGui::EndMenu();
       }
       ImGui::Separator();
-      if (ImGui::MenuItem("Dump Memory...")) {
+      if (ImGui::MenuItem(Lang::DumpMemory)) {
         if (vm) {
           std::string home = get_home_directory();
           pending_memdump = true;
