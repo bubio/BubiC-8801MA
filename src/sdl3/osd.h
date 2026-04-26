@@ -88,6 +88,7 @@ private:
   // ImGui
   void initialize_imgui();
   void release_imgui();
+  void load_font();
   void draw_menu();
   bool draw_menu_contents();
   void draw_status_bar();

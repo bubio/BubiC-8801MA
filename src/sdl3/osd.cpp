@@ -12,6 +12,9 @@
 #include <vector>
 #include <algorithm>
 
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
+
 #include "../vm/vm.h"
 
 #define OSD_LOG(fmt, ...) do { fprintf(stderr, "[OSD] " fmt "\n", ##__VA_ARGS__); fflush(stderr); } while(0)
@@ -92,6 +95,14 @@ namespace Lang {
   static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音", "ADPCM静音", "ADPCM 음소거", "Silenciar ADPCM", "Couper le son ADPCM"};
   static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音", "节奏音静音", "리듬 음소거", "Silenciar ritmo", "Couper le son du rythme"};
   static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ...", "导出内存...", "메모리 덤프...", "Volcar memoria...", "Vider la mémoire..."};
+  static constexpr Msg Debug = {"Debug", "デバッグ", "调试", "디버그", "Depuración", "Débogage"};
+  static constexpr Msg LanguageLabel = {"Language", "言語", "语言", "언어", "Idioma", "Langue"};
+  static constexpr Msg LangEn = {"English", "英語", "英语", "영어", "Inglés", "Anglais"};
+  static constexpr Msg LangJp = {"Japanese", "日本語", "中文(日语)", "일본어", "Japonés", "Japonais"};
+  static constexpr Msg LangZh = {"Chinese (Simplified)", "中国語 (簡体字)", "简体中文", "중국어 (간체)", "Chino (Simplificado)", "Chinois (Simplifié)"};
+  static constexpr Msg LangKo = {"Korean", "韓国語", "韩语", "한국어", "Coreano", "Coréen"};
+  static constexpr Msg LangEs = {"Spanish", "スペイン語", "西班牙语", "스페인어", "Español", "Espagnol"};
+  static constexpr Msg LangFr = {"French", "フランス語", "法语", "프랑스어", "Francés", "Français"};
   static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g"};
   static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d"};
   static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード", "全速", "최고 속도", "VELOCIDAD MÁXIMA", "VITESSE MAXIMALE"};
@@ -1503,68 +1514,7 @@ void OSD::initialize_imgui() {
   const float ui_scale = 1.0f;
   OSD_LOG("ImGui UI scale = %.2f", ui_scale);
 
-  // Load CJK font if needed - Search in common locations across macOS, Windows, and Linux
-  OSD_LOG("Starting CJK font search...");
-  ImFont* font = NULL;
-  const float font_size = 18.0f;
-  const std::vector<std::string> font_paths = {
-    // macOS
-    "/System/Library/Fonts/jp/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-    "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/Supplemental/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/PingFang.ttc",
-    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-    // Windows
-    "C:\\Windows\\Fonts\\msgothic.ttc",
-    "C:\\Windows\\Fonts\\msmincho.ttc",
-    "C:\\Windows\\Fonts\\meiryo.ttc",
-    "C:\\Windows\\Fonts\\simsun.ttc",
-    "C:\\Windows\\Fonts\\malgun.ttf",
-    // Linux
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/takao-gothic/TakaoPGothic.ttf",
-    "/usr/share/fonts/truetype/vlgothic/VL-PGothic-Regular.ttf",
-    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
-  };
-
-  const ImWchar* glyph_ranges = io.Fonts->GetGlyphRangesDefault();
-  if (current_lang == Language::JAPANESE) {
-    glyph_ranges = io.Fonts->GetGlyphRangesJapanese();
-  } else if (current_lang == Language::CHINESE) {
-    glyph_ranges = io.Fonts->GetGlyphRangesChineseFull();
-  } else if (current_lang == Language::KOREAN) {
-    glyph_ranges = io.Fonts->GetGlyphRangesKorean();
-  }
-
-  OSD_LOG("Will check %zu font paths", font_paths.size());
-  int path_index = 0;
-  for (const auto& path : font_paths) {
-    bool exists = false;
-    try {
-      exists = fs::exists(path);
-    } catch (...) {
-      path_index++;
-      continue;
-    }
-    if (exists) {
-      OSD_LOG("[%d] Loading CJK font: %s", path_index, path.c_str());
-      font = io.Fonts->AddFontFromFileTTF(path.c_str(), font_size, NULL, glyph_ranges);
-      if (font) {
-        OSD_LOG("[%d] Font loaded successfully!", path_index);
-        break;
-      }
-    }
-    path_index++;
-  }
-
-  if (!font) {
-    OSD_LOG("No suitable CJK font found, using default font");
-    ImFontConfig cfg;
-    cfg.SizePixels = 13.0f;
-    io.Fonts->AddFontDefault(&cfg);
-  }
+  load_font();
 
   OSD_LOG("ImGui_ImplSDL3_InitForSDLRenderer(window=%p, renderer=%p)...", (void*)window, (void*)renderer);
   bool sdl3_init = ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
@@ -1579,6 +1529,95 @@ void OSD::initialize_imgui() {
     OSD_LOG("ImGui initialized successfully!");
   } else {
     OSD_LOG("ImGui initialization FAILED! sdl3_init=%d, renderer_init=%d", sdl3_init, renderer_init);
+  }
+}
+
+void OSD::load_font() {
+  ImGuiIO &io = ImGui::GetIO();
+  io.Fonts->Clear();
+
+  const float font_size = 18.0f;
+  
+  // Helper to find first existing font from a list
+  auto find_font = [&](const std::vector<std::string>& paths) -> std::string {
+    for (const auto& p : paths) {
+      if (fs::exists(p)) return p;
+    }
+    return "";
+  };
+
+  // Font lists
+  const std::vector<std::string> jp_fonts = {
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+    "C:\\Windows\\Fonts\\meiryo.ttc",
+    "C:\\Windows\\Fonts\\msgothic.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+  };
+  const std::vector<std::string> zh_fonts = {
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "C:\\Windows\\Fonts\\simsun.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
+  };
+  const std::vector<std::string> ko_fonts = {
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "C:\\Windows\\Fonts\\malgun.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+  };
+
+  ImFont* primary_font = nullptr;
+
+  // 1. Load Primary Language Font
+  std::string primary_path = "";
+  const ImWchar* primary_ranges = io.Fonts->GetGlyphRangesDefault();
+
+  if (current_lang == Language::JAPANESE) {
+    primary_path = find_font(jp_fonts);
+    primary_ranges = io.Fonts->GetGlyphRangesJapanese();
+  } else if (current_lang == Language::CHINESE) {
+    primary_path = find_font(zh_fonts);
+    primary_ranges = io.Fonts->GetGlyphRangesChineseFull();
+  } else if (current_lang == Language::KOREAN) {
+    primary_path = find_font(ko_fonts);
+    primary_ranges = io.Fonts->GetGlyphRangesKorean();
+  }
+
+  if (!primary_path.empty()) {
+    OSD_LOG("Loading primary font: %s", primary_path.c_str());
+    primary_font = io.Fonts->AddFontFromFileTTF(primary_path.c_str(), font_size, NULL, primary_ranges);
+  }
+
+  // 2. Merge Japanese Font for disk names if current language is NOT Japanese
+  if (current_lang != Language::JAPANESE) {
+    std::string jp_path = find_font(jp_fonts);
+    if (!jp_path.empty()) {
+      ImFontConfig font_cfg;
+      // If no primary font was loaded, this Japanese font becomes the primary font (MergeMode = false)
+      // If a primary font exists, we merge into it (MergeMode = true)
+      font_cfg.MergeMode = (io.Fonts->Fonts.Size > 0);
+      
+      OSD_LOG("%s Japanese font for fallback: %s", font_cfg.MergeMode ? "Merging" : "Loading", jp_path.c_str());
+      io.Fonts->AddFontFromFileTTF(jp_path.c_str(), font_size, &font_cfg, io.Fonts->GetGlyphRangesJapanese());
+    }
+  }
+
+  // Fallback if nothing loaded
+  if (!primary_font && io.Fonts->Fonts.Size == 0) {
+    OSD_LOG("No CJK fonts found, using default font");
+    ImFontConfig cfg;
+    cfg.SizePixels = 13.0f;
+    io.Fonts->AddFontDefault(&cfg);
+  }
+
+  // Build texture atlas
+  unsigned char* pixels;
+  int width, height;
+  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+  // Update backend texture if already initialized
+  if (imgui_initialized) {
+    ImGui_ImplSDLRenderer3_DestroyDeviceObjects();
+    ImGui_ImplSDLRenderer3_CreateDeviceObjects();
   }
 }
 
@@ -1916,30 +1955,13 @@ bool OSD::draw_menu_contents() {
           }
           ImGui::EndMenu();
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem(Lang::MuteFM, NULL, config.sound_mute_fm)) {
-          config.sound_mute_fm = !config.sound_mute_fm;
-          if (vm)
-            vm->update_mute();
-        }
-        if (ImGui::MenuItem(Lang::MuteSSG, NULL, config.sound_mute_ssg)) {
-          config.sound_mute_ssg = !config.sound_mute_ssg;
-          if (vm)
-            vm->update_mute();
-        }
-        if (ImGui::MenuItem(Lang::MuteADPCM, NULL, config.sound_mute_adpcm)) {
-          config.sound_mute_adpcm = !config.sound_mute_adpcm;
-          if (vm)
-            vm->update_mute();
-        }
-        if (ImGui::MenuItem(Lang::MuteRhythm, NULL, config.sound_mute_rhythm)) {
-          config.sound_mute_rhythm = !config.sound_mute_rhythm;
-          if (vm)
-            vm->update_mute();
-        }
         ImGui::EndMenu();
       }
-      ImGui::Separator();
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu(Lang::Debug)) {
+      menu_tree_open = true;
       if (ImGui::MenuItem(Lang::DumpMemory)) {
         if (vm) {
           std::string home = get_home_directory();
@@ -1955,6 +1977,37 @@ bool OSD::draw_menu_contents() {
             osd->native_dialog_open = false;
           }, this, window, home.c_str(), false);
         }
+      }
+      ImGui::Separator();
+      if (ImGui::MenuItem(Lang::MuteFM, NULL, config.sound_mute_fm)) {
+        config.sound_mute_fm = !config.sound_mute_fm;
+        if (vm)
+          vm->update_mute();
+      }
+      if (ImGui::MenuItem(Lang::MuteSSG, NULL, config.sound_mute_ssg)) {
+        config.sound_mute_ssg = !config.sound_mute_ssg;
+        if (vm)
+          vm->update_mute();
+      }
+      if (ImGui::MenuItem(Lang::MuteADPCM, NULL, config.sound_mute_adpcm)) {
+        config.sound_mute_adpcm = !config.sound_mute_adpcm;
+        if (vm)
+          vm->update_mute();
+      }
+      if (ImGui::MenuItem(Lang::MuteRhythm, NULL, config.sound_mute_rhythm)) {
+        config.sound_mute_rhythm = !config.sound_mute_rhythm;
+        if (vm)
+          vm->update_mute();
+      }
+      ImGui::Separator();
+      if (ImGui::BeginMenu(Lang::LanguageLabel)) {
+        if (ImGui::MenuItem(Lang::LangEn, NULL, current_lang == Language::ENGLISH)) { if (current_lang != Language::ENGLISH) { current_lang = Language::ENGLISH; load_font(); } }
+        if (ImGui::MenuItem(Lang::LangJp, NULL, current_lang == Language::JAPANESE)) { if (current_lang != Language::JAPANESE) { current_lang = Language::JAPANESE; load_font(); } }
+        if (ImGui::MenuItem(Lang::LangZh, NULL, current_lang == Language::CHINESE)) { if (current_lang != Language::CHINESE) { current_lang = Language::CHINESE; load_font(); } }
+        if (ImGui::MenuItem(Lang::LangKo, NULL, current_lang == Language::KOREAN)) { if (current_lang != Language::KOREAN) { current_lang = Language::KOREAN; load_font(); } }
+        if (ImGui::MenuItem(Lang::LangEs, NULL, current_lang == Language::SPANISH)) { if (current_lang != Language::SPANISH) { current_lang = Language::SPANISH; load_font(); } }
+        if (ImGui::MenuItem(Lang::LangFr, NULL, current_lang == Language::FRENCH)) { if (current_lang != Language::FRENCH) { current_lang = Language::FRENCH; load_font(); } }
+        ImGui::EndMenu();
       }
       ImGui::EndMenu();
     }
