@@ -12,6 +12,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "../vm/vm.h"
+
 #define OSD_LOG(fmt, ...) do { fprintf(stderr, "[OSD] " fmt "\n", ##__VA_ARGS__); fflush(stderr); } while(0)
 
 namespace fs = std::filesystem;
@@ -1255,6 +1257,29 @@ void OSD::draw_status_bar() {
     char fps_text[128];
     snprintf(fps_text, sizeof(fps_text), "Render: %.1f  Emu: %.1f", current_fps,
              emu_fps);
+
+    char clock_text[64] = "";
+    const char *boot_str = "";
+#if defined(PC8001_VARIANT)
+    if (config.boot_mode == 0) boot_str = "V1";
+    else if (config.boot_mode == 1) boot_str = "V2";
+    else if (config.boot_mode == 2) boot_str = "N";
+#else
+    if (config.boot_mode == 0) boot_str = "V1S";
+    else if (config.boot_mode == 1) boot_str = "V1H";
+    else if (config.boot_mode == 2) boot_str = "V2";
+    else if (config.boot_mode == 3) boot_str = "N";
+    else if (config.boot_mode == 4) boot_str = "V2CD";
+#endif
+
+    const char *cpu_str = "4MHz";
+#ifdef SUPPORT_PC88_HIGH_CLOCK
+    if (config.cpu_type == 0 || config.cpu_type == 2) {
+      cpu_str = "8MHz";
+    }
+#endif
+    snprintf(clock_text, sizeof(clock_text), "[%s] %s", boot_str, cpu_str);
+
     char speed_text[64];
     if (config.full_speed) {
       snprintf(speed_text, sizeof(speed_text), "FULL SPEED");
@@ -1268,6 +1293,19 @@ void OSD::draw_status_bar() {
     }
 
     float right = ImGui::GetWindowWidth() - 8.0f;
+
+    float fps_w = ImGui::CalcTextSize(fps_text).x;
+    ImGui::SameLine(right - fps_w);
+    ImGui::Text("%s", fps_text);
+    right -= (fps_w + 16.0f);
+
+    if (clock_text[0] != '\0') {
+      float clock_w = ImGui::CalcTextSize(clock_text).x;
+      ImGui::SameLine(right - clock_w);
+      ImGui::Text("%s", clock_text);
+      right -= (clock_w + 16.0f);
+    }
+
     if (speed_text[0] != '\0') {
       float speed_w = ImGui::CalcTextSize(speed_text).x;
       ImGui::SameLine(right - speed_w);
@@ -1278,10 +1316,6 @@ void OSD::draw_status_bar() {
       }
       right -= (speed_w + 24.0f);
     }
-
-    float fps_w = ImGui::CalcTextSize(fps_text).x;
-    ImGui::SameLine(right - fps_w);
-    ImGui::Text("%s", fps_text);
     
     ImGui::End();
   }
