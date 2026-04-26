@@ -1339,7 +1339,7 @@ void OSD::draw_status_bar() {
     char view_text[64], core_text[64];
     snprintf(view_text, sizeof(view_text), (const char*)Lang::FPSView, current_fps);
     snprintf(core_text, sizeof(core_text), (const char*)Lang::FPSCore, emu_fps);
-    snprintf(fps_text, sizeof(fps_text), "%s  %s", view_text, core_text);
+    snprintf(fps_text, sizeof(fps_text), "FPS: %s  %s", view_text, core_text);
 
     char clock_text[64] = "";
     const char *boot_str = "";
