@@ -1,7 +1,7 @@
 # BubiC-8801MA
 
 <p align="center">
-  <img src="assets/icon_src.jpg" alt="BubiC-8801MA" width="128" height="128">
+  <img src="assets/icon_src.png" alt="BubiC-8801MA" width="128" height="128">
 </p>
 
 <p align="center">

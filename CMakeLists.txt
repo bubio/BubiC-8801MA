@@ -120,8 +120,34 @@ set(IMGUI_SOURCES
 )
 
 # Icon
-set(ICON_ICNS ${CMAKE_CURRENT_SOURCE_DIR}/assets/AppIcon.icns)
 set(ICON_ICO  ${CMAKE_CURRENT_SOURCE_DIR}/assets/AppIcon.ico)
+
+# macOS: compile AppIcon.icon (Icon Composer document) with actool.
+# Produces Assets.car (used on macOS 26+ for Liquid Glass) and AppIcon.icns
+# (fallback for older macOS). Requires Xcode 26+ on the build machine.
+if(APPLE)
+    set(ICON_DOC      ${CMAKE_CURRENT_SOURCE_DIR}/assets/AppIcon.icon)
+    set(ICON_OUT_DIR  ${CMAKE_CURRENT_BINARY_DIR}/AppIconCompiled)
+    set(ICON_CAR      ${ICON_OUT_DIR}/Assets.car)
+    set(ICON_ICNS     ${ICON_OUT_DIR}/AppIcon.icns)
+
+    file(GLOB_RECURSE ICON_DOC_SOURCES CONFIGURE_DEPENDS "${ICON_DOC}/*")
+
+    add_custom_command(
+        OUTPUT  ${ICON_CAR} ${ICON_ICNS}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${ICON_OUT_DIR}
+        COMMAND xcrun actool --compile ${ICON_OUT_DIR}
+                             --platform macosx
+                             --minimum-deployment-target ${CMAKE_OSX_DEPLOYMENT_TARGET}
+                             --app-icon AppIcon
+                             --output-partial-info-plist ${ICON_OUT_DIR}/AppIcon-partial.plist
+                             --output-format human-readable-text
+                             ${ICON_DOC}
+        DEPENDS ${ICON_DOC_SOURCES}
+        COMMENT "Compiling AppIcon.icon with actool"
+        VERBATIM
+    )
+endif()
 
 # Windows resource file (embeds .ico)
 if(WIN32)
@@ -141,6 +167,7 @@ add_executable(BubiC-8801MA
     ${SDL_SOURCES}
     ${IMGUI_SOURCES}
     $<$<BOOL:${APPLE}>:${ICON_ICNS}>
+    $<$<BOOL:${APPLE}>:${ICON_CAR}>
     $<$<BOOL:${WIN32}>:${WIN_RC}>
 )
 
@@ -248,8 +275,9 @@ include(CPack)
 
 # Platform specific settings
 if(APPLE)
-    set_source_files_properties(${ICON_ICNS} PROPERTIES
+    set_source_files_properties(${ICON_ICNS} ${ICON_CAR} PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
+        GENERATED TRUE
     )
     set_target_properties(BubiC-8801MA PROPERTIES
         MACOSX_BUNDLE TRUE
