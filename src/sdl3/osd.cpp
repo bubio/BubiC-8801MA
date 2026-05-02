@@ -60,6 +60,13 @@ namespace Lang {
   static constexpr Msg SaveState = {"Save State", "状態保存", "保存存档", "상태 저장", "Guardar estado", "Sauvegarder l'état"};
   static constexpr Msg LoadState = {"Load State", "状態復元", "读取存档", "상태 불러오기", "Cargar estado", "Charger l'état"};
   static constexpr Msg NoData = {"(No Data)", "(データなし)", "(无数据)", "(데이터 없음)", "(Sin datos)", "(Aucune donnée)"};
+  static constexpr Msg StateDialogMenu = {"Save / Load State...", "状態保存・復元...", "保存／读取存档...", "상태 저장 · 불러오기...", "Guardar / cargar estado...", "Sauvegarder / charger l'état..."};
+  static constexpr Msg StateDialogTitle = {"Save / Load State", "状態保存・復元", "保存／读取存档", "상태 저장 · 불러오기", "Guardar / cargar estado", "Sauvegarder / charger l'état"};
+  static constexpr Msg Slot = {"Slot %d", "スロット %d", "槽 %d", "슬롯 %d", "Ranura %d", "Emplacement %d"};
+  static constexpr Msg SaveBtn = {"Save", "保存", "保存", "저장", "Guardar", "Sauvegarder"};
+  static constexpr Msg LoadBtn = {"Load", "復元", "读取", "불러오기", "Cargar", "Charger"};
+  static constexpr Msg CloseBtn = {"Close", "閉じる", "关闭", "닫기", "Cerrar", "Fermer"};
+  static constexpr Msg DeleteBtn = {"Delete", "削除", "删除", "삭제", "Eliminar", "Supprimer"};
   static constexpr Msg Exit = {"Exit", "終了", "退出", "종료", "Salir", "Quitter"};
   static constexpr Msg Insert = {"Insert", "挿入", "插入", "삽입", "Insertar", "Insérer"};
   static constexpr Msg Eject = {"Eject", "取り出し", "弹出", "꺼내기", "Expulsar", "Éjecter"};
@@ -377,6 +384,13 @@ OSD::OSD() {
   vm_screen_buffer = NULL;
   vm_screen_width = 0;
   vm_screen_height = 0;
+  show_state_dialog = false;
+  state_dialog_selected = 0;
+  for (int i = 0; i < 10; i++) {
+    state_thumb_tex[i] = NULL;
+    state_thumb_w[i] = 0;
+    state_thumb_h[i] = 0;
+  }
   memset(key_status, 0, sizeof(key_status));
   memset(joy_status, 0, sizeof(joy_status));
   memset(mouse_status, 0, sizeof(mouse_status));
@@ -524,6 +538,7 @@ void OSD::initialize(int rate, int samples) {
 }
 
 void OSD::release() {
+  release_state_thumbnails();
   release_sound();
   release_imgui();
   if (joystick) {
@@ -1205,6 +1220,10 @@ int OSD::draw_screen() {
       draw_status_bar();
     }
 
+    if (show_state_dialog) {
+      draw_state_dialog();
+    }
+
     // VM Screen Scaling
     static const float scales[] = { 1.0f, 1.5f, 2.0f, 2.5f, 3.0f };
     int idx = config.window_scale_idx;
@@ -1272,6 +1291,9 @@ int OSD::draw_screen() {
     }
     if (native_dialog_open) {
       next_reason |= UI_REASON_NATIVE_DIALOG;
+    }
+    if (show_state_dialog) {
+      next_reason |= UI_REASON_MENU_TREE;
     }
     const bool next_ui_interacting = (next_reason != UI_REASON_NONE);
     if (!prev_ui_interacting && next_ui_interacting) {
@@ -1475,6 +1497,230 @@ void OSD::draw_status_bar() {
   ImGui::PopStyleVar();
 }
 
+std::string OSD::thumbnail_path_for_state(const _TCHAR *state_path) {
+  std::string s(tchar_to_char(state_path));
+  s += ".bmp";
+  return s;
+}
+
+void OSD::release_state_thumbnails() {
+  for (int i = 0; i < 10; i++) {
+    if (state_thumb_tex[i]) {
+      SDL_DestroyTexture(state_thumb_tex[i]);
+      state_thumb_tex[i] = NULL;
+    }
+    state_thumb_w[i] = 0;
+    state_thumb_h[i] = 0;
+  }
+}
+
+void OSD::refresh_state_thumbnails() {
+  release_state_thumbnails();
+  if (!emu || !renderer) return;
+  for (int i = 0; i < 10; i++) {
+    _TCHAR state_path_copy[_MAX_PATH];
+    my_tcscpy_s(state_path_copy, _MAX_PATH, emu->state_file_path(i));
+    std::string thumb = thumbnail_path_for_state(state_path_copy);
+    SDL_Surface *surf = SDL_LoadBMP(thumb.c_str());
+    if (!surf) continue;
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
+    if (tex) {
+      SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+      state_thumb_tex[i] = tex;
+      state_thumb_w[i] = surf->w;
+      state_thumb_h[i] = surf->h;
+    }
+    SDL_DestroySurface(surf);
+  }
+}
+
+void OSD::save_state_thumbnail_for_slot(int slot) {
+  if (!emu || !vm_screen_buffer || vm_screen_width <= 0 || vm_screen_height <= 0) return;
+  _TCHAR state_path_copy[_MAX_PATH];
+  my_tcscpy_s(state_path_copy, _MAX_PATH, emu->state_file_path(slot));
+  std::string thumb = thumbnail_path_for_state(state_path_copy);
+
+  SDL_Surface *src = SDL_CreateSurfaceFrom(
+      vm_screen_width, vm_screen_height, SDL_PIXELFORMAT_XRGB8888,
+      vm_screen_buffer, vm_screen_width * (int)sizeof(scrntype_t));
+  if (!src) return;
+
+  const int tw = 256;
+  const int th = 160;
+  SDL_Surface *dst = SDL_CreateSurface(tw, th, SDL_PIXELFORMAT_XRGB8888);
+  if (!dst) { SDL_DestroySurface(src); return; }
+  SDL_Rect src_rect = { 0, 0, vm_screen_width, vm_screen_height };
+  SDL_Rect dst_rect = { 0, 0, tw, th };
+  SDL_BlitSurfaceScaled(src, &src_rect, dst, &dst_rect, SDL_SCALEMODE_LINEAR);
+  SDL_SaveBMP(dst, thumb.c_str());
+  SDL_DestroySurface(dst);
+  SDL_DestroySurface(src);
+}
+
+void OSD::open_state_dialog() {
+  show_state_dialog = true;
+  state_dialog_selected = 0;
+  refresh_state_thumbnails();
+}
+
+void OSD::close_state_dialog() {
+  show_state_dialog = false;
+  release_state_thumbnails();
+}
+
+void OSD::draw_state_dialog() {
+  ImGuiViewport *viewport = ImGui::GetMainViewport();
+  const float dlg_w = 480.0f;
+  const float dlg_h = 360.0f;
+  ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + viewport->Size.x * 0.5f,
+                                 viewport->Pos.y + viewport->Size.y * 0.5f),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  ImGui::SetNextWindowSize(ImVec2(dlg_w, dlg_h), ImGuiCond_Appearing);
+
+  bool open = true;
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
+  ImGui::SetNextWindowSizeConstraints(ImVec2(dlg_w, dlg_h), ImVec2(FLT_MAX, FLT_MAX));
+  if (!ImGui::Begin((const char *)Lang::StateDialogTitle, &open, flags)) {
+    ImGui::End();
+    if (!open) close_state_dialog();
+    return;
+  }
+
+  const float btn_panel_w = 100.0f;
+  const float thumb_w = 256.0f;
+  const float thumb_h = 160.0f;
+  const float row_h = thumb_h + 6.0f;
+
+  // Compute dimensions for inner regions
+  ImVec2 avail = ImGui::GetContentRegionAvail();
+  float reserve_bottom = ImGui::GetFrameHeightWithSpacing();
+  float list_w = avail.x - btn_panel_w - 12.0f;
+  float list_h = avail.y - reserve_bottom;
+
+  // Collect slot info
+  bool slot_exists[10];
+  char slot_time[10][40];
+  _TCHAR slot_path[10][_MAX_PATH];
+  for (int i = 0; i < 10; i++) {
+    my_tcscpy_s(slot_path[i], _MAX_PATH, emu->state_file_path(i));
+    slot_exists[i] = fs::exists(tchar_to_char(slot_path[i]));
+    slot_time[i][0] = '\0';
+    if (slot_exists[i]) {
+      auto ftime = fs::last_write_time(tchar_to_char(slot_path[i]));
+      auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+          ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
+      std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
+      std::tm *local_t = std::localtime(&tt);
+      if (local_t) std::strftime(slot_time[i], sizeof(slot_time[i]),
+                                 "%Y/%m/%d %H:%M:%S", local_t);
+    }
+  }
+
+  // Left: scrollable slot list
+  ImGui::BeginChild("##state_list", ImVec2(list_w, list_h), true);
+  for (int i = 0; i < 10; i++) {
+    ImGui::PushID(i);
+    bool selected = (state_dialog_selected == i);
+
+    ImVec2 row_pos = ImGui::GetCursorScreenPos();
+    if (ImGui::Selectable("##row", selected, ImGuiSelectableFlags_AllowOverlap,
+                          ImVec2(0, row_h))) {
+      state_dialog_selected = i;
+    }
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+      state_dialog_selected = i;
+      if (slot_exists[i]) {
+        emu->load_state(slot_path[i]);
+        ImGui::PopID();
+        ImGui::EndChild();
+        ImGui::End();
+        close_state_dialog();
+        return;
+      }
+    }
+
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    float thumb_x = row_pos.x + 4.0f;
+    float thumb_y = row_pos.y + 3.0f;
+    ImVec2 tmin(thumb_x, thumb_y);
+    ImVec2 tmax(thumb_x + thumb_w, thumb_y + thumb_h);
+    if (state_thumb_tex[i]) {
+      dl->AddImage((ImTextureID)(uintptr_t)state_thumb_tex[i], tmin, tmax);
+    } else {
+      dl->AddRectFilled(tmin, tmax, IM_COL32(40, 40, 40, 255));
+    }
+    dl->AddRect(tmin, tmax, IM_COL32(160, 160, 160, 255));
+
+    // Slot number overlay (top-left)
+    char slot_label[32];
+    snprintf(slot_label, sizeof(slot_label), (const char *)Lang::Slot, i);
+    ImVec2 ls = ImGui::CalcTextSize(slot_label);
+    dl->AddRectFilled(
+        ImVec2(tmin.x, tmin.y),
+        ImVec2(tmin.x + ls.x + 12.0f, tmin.y + ls.y + 6.0f),
+        IM_COL32(0, 0, 0, 180));
+    dl->AddText(ImVec2(tmin.x + 6.0f, tmin.y + 3.0f),
+                IM_COL32(255, 255, 255, 255), slot_label);
+
+    // Datetime overlay (bottom strip)
+    const char *time_text = slot_exists[i] ? slot_time[i] : (const char *)Lang::NoData;
+    ImVec2 ts = ImGui::CalcTextSize(time_text);
+    float strip_h = ts.y + 6.0f;
+    dl->AddRectFilled(
+        ImVec2(tmin.x, tmax.y - strip_h),
+        ImVec2(tmax.x, tmax.y),
+        IM_COL32(0, 0, 0, 180));
+    dl->AddText(
+        ImVec2(tmax.x - ts.x - 6.0f, tmax.y - strip_h + 3.0f),
+        IM_COL32(255, 255, 255, 255), time_text);
+
+    ImGui::PopID();
+  }
+  ImGui::EndChild();
+
+  // Right: action buttons
+  ImGui::SameLine();
+  ImGui::BeginChild("##state_actions", ImVec2(btn_panel_w, list_h), false);
+  int sel = state_dialog_selected;
+  bool sel_exists = (sel >= 0 && sel < 10) ? slot_exists[sel] : false;
+
+  if (ImGui::Button((const char *)Lang::SaveBtn, ImVec2(-FLT_MIN, 0))) {
+    emu->save_state(slot_path[sel]);
+    save_state_thumbnail_for_slot(sel);
+    refresh_state_thumbnails();
+  }
+  ImGui::Spacing();
+  ImGui::BeginDisabled(!sel_exists);
+  if (ImGui::Button((const char *)Lang::LoadBtn, ImVec2(-FLT_MIN, 0))) {
+    emu->load_state(slot_path[sel]);
+    ImGui::EndDisabled();
+    ImGui::EndChild();
+    ImGui::End();
+    close_state_dialog();
+    return;
+  }
+  ImGui::EndDisabled();
+  ImGui::Spacing();
+  ImGui::BeginDisabled(!sel_exists);
+  if (ImGui::Button((const char *)Lang::DeleteBtn, ImVec2(-FLT_MIN, 0))) {
+    FILEIO::RemoveFile(slot_path[sel]);
+    std::string thumb = thumbnail_path_for_state(slot_path[sel]);
+    SDL_RemovePath(thumb.c_str());
+    refresh_state_thumbnails();
+  }
+  ImGui::EndDisabled();
+  ImGui::EndChild();
+
+  // Close button at bottom
+  ImGui::Separator();
+  if (ImGui::Button((const char *)Lang::CloseBtn, ImVec2(100, 0))) {
+    open = false;
+  }
+
+  ImGui::End();
+  if (!open) close_state_dialog();
+}
+
 void OSD::add_extra_frames(int frames) {
   if (frames <= 0) {
     return;
@@ -1673,44 +1919,8 @@ bool OSD::draw_menu_contents() {
       ImGui::Separator();
       if (ImGui::MenuItem(Lang::RomajiToKana, NULL, config.romaji_to_kana)) { config.romaji_to_kana = !config.romaji_to_kana; }
       ImGui::Separator();
-      if (ImGui::BeginMenu(Lang::SaveState)) {
-        for(int i=0; i<10; i++) {
-          const _TCHAR* path = emu->state_file_path(i);
-          char label[64];
-          if (fs::exists(tchar_to_char(path))) {
-            auto ftime = fs::last_write_time(tchar_to_char(path));
-            auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
-            std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
-            std::tm* local_t = std::localtime(&tt);
-            char time_str[32];
-            std::strftime(time_str, sizeof(time_str), "%Y/%m/%d %H:%M:%S", local_t);
-            snprintf(label, sizeof(label), "%d: %s", i, time_str);
-          } else {
-            snprintf(label, sizeof(label), "%d: %s", i, (const char*)Lang::NoData);
-          }
-          if(ImGui::MenuItem(label)) { if(emu) emu->save_state(path); }
-        }
-        ImGui::EndMenu();
-      }
-      if (ImGui::BeginMenu(Lang::LoadState)) {
-        for(int i=0; i<10; i++) {
-          const _TCHAR* path = emu->state_file_path(i);
-          char label[64];
-          bool exists = fs::exists(tchar_to_char(path));
-          if (exists) {
-            auto ftime = fs::last_write_time(tchar_to_char(path));
-            auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
-            std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
-            std::tm* local_t = std::localtime(&tt);
-            char time_str[32];
-            std::strftime(time_str, sizeof(time_str), "%Y/%m/%d %H:%M:%S", local_t);
-            snprintf(label, sizeof(label), "%d: %s", i, time_str);
-          } else {
-            snprintf(label, sizeof(label), "%d: %s", i, (const char*)Lang::NoData);
-          }
-          if(ImGui::MenuItem(label, NULL, false, exists)) { if(emu) emu->load_state(path); }
-        }
-        ImGui::EndMenu();
+      if (ImGui::MenuItem(Lang::StateDialogMenu)) {
+        open_state_dialog();
       }
       ImGui::Separator();
       if (ImGui::MenuItem(Lang::Exit)) {

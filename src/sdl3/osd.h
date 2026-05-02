@@ -125,6 +125,19 @@ private:
   std::mutex screenshot_mutex;
   void show_screenshot_dialog();
   void process_pending_screenshot();
+  // Save/Load state dialog
+  bool show_state_dialog;
+  int state_dialog_selected;
+  SDL_Texture *state_thumb_tex[10];
+  int state_thumb_w[10];
+  int state_thumb_h[10];
+  void open_state_dialog();
+  void close_state_dialog();
+  void draw_state_dialog();
+  void refresh_state_thumbnails();
+  void release_state_thumbnails();
+  void save_state_thumbnail_for_slot(int slot);
+  std::string thumbnail_path_for_state(const _TCHAR *state_path);
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
   void clear_all_pressed_keys();
