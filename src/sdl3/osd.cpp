@@ -1425,16 +1425,18 @@ void OSD::draw_status_bar() {
       cpu_str = "8MHz";
     }
 #endif
-    snprintf(clock_text, sizeof(clock_text), "[%s] %s", boot_str, cpu_str);
+    char speed_suffix[32] = "";
+    if (config.cpu_power != 1.0f && !config.full_speed) {
+      if (config.cpu_power < 1.0f)
+        snprintf(speed_suffix, sizeof(speed_suffix), " x%.2g", config.cpu_power);
+      else
+        snprintf(speed_suffix, sizeof(speed_suffix), " x%d", (int)config.cpu_power);
+    }
+    snprintf(clock_text, sizeof(clock_text), "[%s] %s%s", boot_str, cpu_str, speed_suffix);
 
     char speed_text[64];
     if (config.full_speed) {
       snprintf(speed_text, sizeof(speed_text), "%s", (const char*)Lang::FullSpeedLabel);
-    } else if (config.cpu_power != 1.0f) {
-      if (config.cpu_power < 1.0f)
-        snprintf(speed_text, sizeof(speed_text), (const char*)Lang::SpeedLabel, config.cpu_power);
-      else
-        snprintf(speed_text, sizeof(speed_text), (const char*)Lang::SpeedLabelInt, (int)config.cpu_power);
     } else {
       speed_text[0] = '\0';
     }
@@ -1559,7 +1561,7 @@ void OSD::load_font() {
   ImGuiIO &io = ImGui::GetIO();
   io.Fonts->Clear();
 
-  const float font_size = 18.0f;
+  const float font_size = 17.0f;
   
   // Helper to find first existing font from a list.
   // Use u8path + error_code: path strings are UTF-8 (some contain Japanese
