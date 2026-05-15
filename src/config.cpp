@@ -106,6 +106,7 @@ void initialize_config()
 	#endif
 	config.cpu_type = 1; // 4MHz by default
 	config.compress_state = config.drive_vm_in_opecode = true;
+	config.reset_on_dd = true;
 	config.cpu_power = 1.0f;
 	config.full_speed = false;
 	
@@ -232,6 +233,7 @@ void load_config(const _TCHAR* config_path)
 		}
 	#endif
 	config.compress_state = MyGetPrivateProfileBool(_T("Control"), _T("CompressState"), config.compress_state, config_path);
+	config.reset_on_dd = MyGetPrivateProfileBool(_T("Control"), _T("ResetOnDD"), config.reset_on_dd, config_path);
 	config.drive_vm_in_opecode = MyGetPrivateProfileBool(_T("Control"), _T("DriveVMInOpecode"), config.drive_vm_in_opecode, config_path);
 	
 	// recent files
@@ -497,6 +499,7 @@ void save_config(const _TCHAR* config_path)
 		}
 	#endif
 	MyWritePrivateProfileBool(_T("Control"), _T("CompressState"), config.compress_state, config_path);
+	MyWritePrivateProfileBool(_T("Control"), _T("ResetOnDD"), config.reset_on_dd, config_path);
 	MyWritePrivateProfileBool(_T("Control"), _T("DriveVMInOpecode"), config.drive_vm_in_opecode, config_path);
 	
 	// recent files

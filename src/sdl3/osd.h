@@ -116,10 +116,12 @@ private:
   void select_save_file(int drive, int type);
   void select_file(int drive);
   void process_pending_insert();
+  void process_pending_dd();
   void process_pending_save();
   int pending_blank_type;
   int pending_drive;
   std::string pending_insert_path;
+  std::string pending_dd_path;
   std::string pending_save_path;
   std::string pending_screenshot_path;
   std::mutex screenshot_mutex;

@@ -124,6 +124,7 @@ typedef struct {
 		bool baud_high[USE_TAPE_TMP];
 	#endif
 	bool compress_state;
+	bool reset_on_dd;
 	float cpu_power;
 	bool full_speed, drive_vm_in_opecode;
 	

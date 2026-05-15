@@ -83,6 +83,8 @@ namespace Lang {
   static constexpr Msg Reset = {"Reset", "リセット", "重置", "초기화", "Reiniciar", "Réinitialiser"};
   static constexpr Msg FullSpeed = {"Full Speed", "フルスピード", "全速", "최고 속도", "Velocidad máxima", "Vitesse maximale"};
   static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換", "罗马字转假名", "로마자 카나 변환", "Romaji a Kana", "Romaji vers Kana"};
+  static constexpr Msg System = {"System", "システム", "系统", "시스템", "Sistema", "Système"};
+  static constexpr Msg ResetOnDD = {"Reset on D&D", "D&D時にリセット", "拖放时重置", "D&D시 초기화", "Restablecer en D&D", "Réinitialiser sur D&D"};
   static constexpr Msg SaveState = {"Save State", "状態保存", "保存存档", "상태 저장", "Guardar estado", "Sauvegarder l'état"};
   static constexpr Msg LoadState = {"Load State", "状態復元", "读取存档", "상태 불러오기", "Cargar estado", "Charger l'état"};
   static constexpr Msg NoData = {"(No Data)", "(データなし)", "(无数据)", "(데이터 없음)", "(Sin datos)", "(Aucune donnée)"};
@@ -802,6 +804,11 @@ void OSD::update_input() {
     if (event.type == SDL_EVENT_QUIT) {
       terminated = true;
     }
+    if (event.type == SDL_EVENT_DROP_FILE) {
+      if (event.drop.data) {
+        pending_dd_path = event.drop.data;
+      }
+    }
     const bool is_key_event =
         (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP);
     const bool block_vm_keydown =
@@ -1292,6 +1299,7 @@ int OSD::draw_screen() {
     SDL_RenderTexture(renderer, screen_texture, NULL, &dest_rect);
 
     process_pending_insert();
+    process_pending_dd();
     process_pending_save();
     process_pending_screenshot();
 
@@ -2203,6 +2211,10 @@ bool OSD::draw_menu_contents() {
         }
         ImGui::EndMenu();
       }
+      if (ImGui::BeginMenu(Lang::System)) {
+        ImGui::MenuItem(Lang::ResetOnDD, NULL, &config.reset_on_dd);
+        ImGui::EndMenu();
+      }
       ImGui::EndMenu();
     }
 
@@ -2347,6 +2359,47 @@ void OSD::process_pending_insert() {
         emu->d88_file[1].cur_bank = 0;
       }
       add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
+    }
+  }
+}
+
+void OSD::process_pending_dd() {
+  if (pending_dd_path.empty()) return;
+
+  std::string full_path = pending_dd_path;
+  pending_dd_path.clear();
+
+  // Update last_browser_path from the selected file's directory
+  fs::path selected_dir = utf8_to_fs_path(full_path.c_str()).parent_path();
+  std::string dir_utf8 = path_to_utf8(selected_dir);
+  my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(dir_utf8.c_str()));
+
+  fs::path file_p = utf8_to_fs_path(full_path.c_str());
+  std::string display_name = path_to_utf8(file_p.filename());
+
+  if (vm && emu) {
+    // FD1: Always insert the first image (Bank 0)
+    vm->open_floppy_disk(0, utf8_path_to_tchar(full_path.c_str()), 0);
+    my_tcscpy_s(fd1_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
+    my_tcscpy_s(emu->floppy_disk_status[0].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+    emu->floppy_disk_status[0].bank = 0;
+    int banks = get_disk_names(full_path.c_str(), 0, emu);
+    emu->d88_file[0].cur_bank = 0;
+    add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 0);
+
+    // If file has a second image, insert Bank 1 to FD2 (replacing existing)
+    if (banks >= 2) {
+      vm->open_floppy_disk(1, utf8_path_to_tchar(full_path.c_str()), 1);
+      my_tcscpy_s(fd2_path, _MAX_PATH, utf8_path_to_tchar(display_name.c_str()));
+      my_tcscpy_s(emu->floppy_disk_status[1].path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+      emu->floppy_disk_status[1].bank = 1;
+      get_disk_names(full_path.c_str(), 1, emu);
+      emu->d88_file[1].cur_bank = 1;
+      add_recent_disk(utf8_path_to_tchar(full_path.c_str()), 1);
+    }
+
+    if (config.reset_on_dd) {
+      emu->reset();
     }
   }
 }
