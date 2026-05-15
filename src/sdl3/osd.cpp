@@ -1816,86 +1816,193 @@ void OSD::load_font() {
 
   const float font_size = 15.0f;
 
-  // Helper to find first existing font from a list.
-  // Use u8path + error_code: path strings are UTF-8 (some contain Japanese
-  // characters for macOS fonts) and the default narrow path ctor on Windows
-  // would interpret them via the system code page (CP932), throwing on
-  // invalid sequences and aborting the process.
+  // ------------------------------------------------------------
+  // Helper
+  // ------------------------------------------------------------
   auto find_font = [&](const std::vector<std::string>& paths) -> std::string {
     for (const auto& p : paths) {
       std::error_code ec;
-      if (fs::exists(fs::u8path(p), ec)) return p;
+      if (fs::exists(fs::u8path(p), ec)) {
+        return p;
+      }
     }
     return "";
   };
 
-  // Font lists
+  // ------------------------------------------------------------
+  // Base UI Fonts
+  // ------------------------------------------------------------
+  const std::vector<std::string> ui_fonts = {
+#ifdef _WIN32
+    "C:\\Windows\\Fonts\\segoeui.ttf",
+#elif __APPLE__
+    "/System/Library/Fonts/SFNS.ttf",
+#else
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+#endif
+  };
+
+  // ------------------------------------------------------------
+  // Japanese Fonts
+  // ------------------------------------------------------------
   const std::vector<std::string> jp_fonts = {
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+#ifdef _WIN32
+    "C:\\Windows\\Fonts\\YuGothR.ttc",
     "C:\\Windows\\Fonts\\meiryo.ttc",
     "C:\\Windows\\Fonts\\msgothic.ttc",
+#elif __APPLE__
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+#else
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+#endif
   };
+
+  // ------------------------------------------------------------
+  // Chinese Fonts
+  // ------------------------------------------------------------
   const std::vector<std::string> zh_fonts = {
+#ifdef _WIN32
+    "C:\\Windows\\Fonts\\msyh.ttc",   // Microsoft YaHei
+    "C:\\Windows\\Fonts\\simsun.ttc",
+#elif __APPLE__
     "/System/Library/Fonts/PingFang.ttc",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "C:\\Windows\\Fonts\\simsun.ttc",
+#else
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
+#endif
   };
+
+  // ------------------------------------------------------------
+  // Korean Fonts
+  // ------------------------------------------------------------
   const std::vector<std::string> ko_fonts = {
-    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+#ifdef _WIN32
     "C:\\Windows\\Fonts\\malgun.ttf",
+#elif __APPLE__
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+#else
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+#endif
   };
 
-  ImFont* primary_font = nullptr;
+  ImFont* base_font = nullptr;
 
-  // 1. Load Primary Language Font
-  std::string primary_path = "";
-  const ImWchar* primary_ranges = io.Fonts->GetGlyphRangesDefault();
+  // ------------------------------------------------------------
+  // 1. Load Base UI Font
+  // ------------------------------------------------------------
+  {
+    std::string ui_path = find_font(ui_fonts);
 
-  if (current_lang == Language::JAPANESE) {
-    primary_path = find_font(jp_fonts);
-    primary_ranges = io.Fonts->GetGlyphRangesJapanese();
-  } else if (current_lang == Language::CHINESE) {
-    primary_path = find_font(zh_fonts);
-    primary_ranges = io.Fonts->GetGlyphRangesChineseFull();
-  } else if (current_lang == Language::KOREAN) {
-    primary_path = find_font(ko_fonts);
-    primary_ranges = io.Fonts->GetGlyphRangesKorean();
-  }
+    if (!ui_path.empty()) {
+      OSD_LOG("Loading base UI font: %s", ui_path.c_str());
 
-  if (!primary_path.empty()) {
-    OSD_LOG("Loading primary font: %s", primary_path.c_str());
-    primary_font = io.Fonts->AddFontFromFileTTF(primary_path.c_str(), font_size, NULL, primary_ranges);
-  }
-
-  // 2. Merge Japanese Font for disk names if current language is NOT Japanese
-  if (current_lang != Language::JAPANESE) {
-    std::string jp_path = find_font(jp_fonts);
-    if (!jp_path.empty()) {
-      ImFontConfig font_cfg;
-      // If no primary font was loaded, this Japanese font becomes the primary font (MergeMode = false)
-      // If a primary font exists, we merge into it (MergeMode = true)
-      font_cfg.MergeMode = (io.Fonts->Fonts.Size > 0);
-
-      OSD_LOG("%s Japanese font for fallback: %s", font_cfg.MergeMode ? "Merging" : "Loading", jp_path.c_str());
-      io.Fonts->AddFontFromFileTTF(jp_path.c_str(), font_size, &font_cfg, io.Fonts->GetGlyphRangesJapanese());
+      base_font = io.Fonts->AddFontFromFileTTF(
+        ui_path.c_str(),
+        font_size,
+        nullptr,
+        io.Fonts->GetGlyphRangesDefault()
+      );
     }
   }
 
-  // Fallback if nothing loaded
-  if (!primary_font && io.Fonts->Fonts.Size == 0) {
-    OSD_LOG("No CJK fonts found, using default font");
+  // ------------------------------------------------------------
+  // 2. Merge CJK Font
+  // ------------------------------------------------------------
+  auto merge_font = [&](const std::vector<std::string>& paths,
+                        const ImWchar* ranges,
+                        const char* label) {
+
+    std::string path = find_font(paths);
+
+    if (path.empty()) {
+      OSD_LOG("No %s font found", label);
+      return;
+    }
+
+    ImFontConfig cfg;
+    cfg.MergeMode = (io.Fonts->Fonts.Size > 0);
+    cfg.PixelSnapH = true;
+
+    OSD_LOG("%s %s font: %s",
+            cfg.MergeMode ? "Merging" : "Loading",
+            label,
+            path.c_str());
+
+    io.Fonts->AddFontFromFileTTF(
+      path.c_str(),
+      font_size,
+      &cfg,
+      ranges
+    );
+  };
+
+  switch (current_lang) {
+    case Language::JAPANESE:
+      merge_font(
+        jp_fonts,
+        io.Fonts->GetGlyphRangesJapanese(),
+        "Japanese"
+      );
+      break;
+
+    case Language::CHINESE:
+      merge_font(
+        zh_fonts,
+        io.Fonts->GetGlyphRangesChineseFull(),
+        "Chinese"
+      );
+
+      // Japanese fallback for disk names etc.
+      merge_font(
+        jp_fonts,
+        io.Fonts->GetGlyphRangesJapanese(),
+        "Japanese fallback"
+      );
+      break;
+
+    case Language::KOREAN:
+      merge_font(
+        ko_fonts,
+        io.Fonts->GetGlyphRangesKorean(),
+        "Korean"
+      );
+
+      // Japanese fallback for disk names etc.
+      merge_font(
+        jp_fonts,
+        io.Fonts->GetGlyphRangesJapanese(),
+        "Japanese fallback"
+      );
+      break;
+
+    default:
+      // English UI:
+      // add Japanese fallback so filenames work.
+      merge_font(
+        jp_fonts,
+        io.Fonts->GetGlyphRangesJapanese(),
+        "Japanese fallback"
+      );
+      break;
+  }
+
+  // ------------------------------------------------------------
+  // 3. Fallback
+  // ------------------------------------------------------------
+  if (io.Fonts->Fonts.Size == 0) {
+    OSD_LOG("No fonts found, using ImGui default font");
+
     ImFontConfig cfg;
     cfg.SizePixels = font_size;
+
     io.Fonts->AddFontDefault(&cfg);
   }
 
-  // ImGui 1.92+ with ImGuiBackendFlags_RendererHasTextures handles atlas
-  // building and texture upload incrementally — no explicit Build() or
-  // DestroyDeviceObjects/CreateDeviceObjects is needed here. The renderer
-  // backend will pick up the new fonts on the next frame.
+  // ------------------------------------------------------------
+  // ImGui 1.92+
+  // Atlas upload handled automatically by renderer backend.
+  // ------------------------------------------------------------
 }
 
 void OSD::release_imgui() {
