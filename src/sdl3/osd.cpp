@@ -81,7 +81,7 @@ struct Msg {
 namespace Lang {
   static constexpr Msg Control = {"Control", "コントロール", "控制", "컨트롤", "Control", "Contrôle"};
   static constexpr Msg Reset = {"Reset", "リセット", "重置", "초기화", "Reiniciar", "Réinitialiser"};
-  static constexpr Msg FullSpeed = {"Full Speed", "フルスピード", "全速", "최고 속도", "Velocidad máxima", "Vitesse maximale"};
+  static constexpr Msg FullSpeed = {"Uncapped", "リミッター解除", "解除限制", "제한 해제", "Sin límite", "Sans limite"};
   static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換", "罗马字转假名", "로마자 카나 변환", "Romaji a Kana", "Romaji vers Kana"};
   static constexpr Msg System = {"System", "システム", "系统", "시스템", "Sistema", "Système"};
   static constexpr Msg ResetOnDD = {"Reset on D&D", "D&D時にリセット", "拖放时重置", "D&D시 초기화", "Restablecer en D&D", "Réinitialiser sur D&D"};
@@ -140,7 +140,6 @@ namespace Lang {
   static constexpr Msg LangFr = {"French", "フランス語", "法语", "프랑스어", "Francés", "Français"};
   static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g"};
   static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d"};
-  static constexpr Msg FullSpeedLabel = {"FULL SPEED", "フルスピード", "全速", "최고 속도", "VELOCIDAD MÁXIMA", "VITESSE MAXIMALE"};
   static constexpr Msg VolumeLabel = {"Vol:", "音量:", "音量:", "음량:", "Vol:", "Vol:"};
   static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f"};
   static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f"};
@@ -1468,20 +1467,16 @@ void OSD::draw_status_bar() {
     }
 #endif
     char speed_suffix[32] = "";
-    if (config.cpu_power != 1.0f && !config.full_speed) {
+    if (config.cpu_power != 1.0f) {
       if (config.cpu_power < 1.0f)
         snprintf(speed_suffix, sizeof(speed_suffix), " x%.2g", config.cpu_power);
       else
         snprintf(speed_suffix, sizeof(speed_suffix), " x%d", (int)config.cpu_power);
     }
-    snprintf(clock_text, sizeof(clock_text), "[%s] %s%s", boot_str, cpu_str, speed_suffix);
-
-    char speed_text[64];
     if (config.full_speed) {
-      snprintf(speed_text, sizeof(speed_text), "%s", (const char*)Lang::FullSpeedLabel);
-    } else {
-      speed_text[0] = '\0';
+      strncat(speed_suffix, "+", sizeof(speed_suffix) - strlen(speed_suffix) - 1);
     }
+    snprintf(clock_text, sizeof(clock_text), "[%s] %s%s", boot_str, cpu_str, speed_suffix);
 
     float right = ImGui::GetWindowWidth() - 12.0f;
 
@@ -1495,20 +1490,12 @@ void OSD::draw_status_bar() {
       float clock_w = ImGui::CalcTextSize(clock_text).x;
       ImGui::SameLine(right - clock_w);
       ImGui::AlignTextToFramePadding();
-      ImGui::Text("%s", clock_text);
-      right -= (clock_w + 16.0f);
-    }
-
-    if (speed_text[0] != '\0') {
-      float speed_w = ImGui::CalcTextSize(speed_text).x;
-      ImGui::SameLine(right - speed_w);
-      ImGui::AlignTextToFramePadding();
       if (config.full_speed) {
-        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "%s", speed_text);
+        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "%s", clock_text);
       } else {
-        ImGui::Text("%s", speed_text);
+        ImGui::Text("%s", clock_text);
       }
-      right -= (speed_w + 24.0f);
+      right -= (clock_w + 16.0f);
     }
 
     ImGui::End();
