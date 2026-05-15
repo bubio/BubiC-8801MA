@@ -1396,7 +1396,7 @@ void OSD::draw_status_bar() {
       ImGui::Text("FD%d:", i + 1);
       ImVec2 text_min = ImGui::GetItemRectMin();
       ImVec2 text_max = ImGui::GetItemRectMax();
-      float text_center_y = (text_min.y + text_max.y) * 0.5f;
+      float text_center_y = (text_min.y + text_max.y) * 0.5f + 1;
       ImGui::SameLine(0.0f, 4.0f);
 
       const float lamp_size = 10.0f;
@@ -1827,8 +1827,8 @@ void OSD::load_font() {
   ImGuiIO &io = ImGui::GetIO();
   io.Fonts->Clear();
 
-  const float font_size = 17.0f;
-  
+  const float font_size = 15.0f;
+
   // Helper to find first existing font from a list.
   // Use u8path + error_code: path strings are UTF-8 (some contain Japanese
   // characters for macOS fonts) and the default narrow path ctor on Windows
@@ -1891,7 +1891,7 @@ void OSD::load_font() {
       // If no primary font was loaded, this Japanese font becomes the primary font (MergeMode = false)
       // If a primary font exists, we merge into it (MergeMode = true)
       font_cfg.MergeMode = (io.Fonts->Fonts.Size > 0);
-      
+
       OSD_LOG("%s Japanese font for fallback: %s", font_cfg.MergeMode ? "Merging" : "Loading", jp_path.c_str());
       io.Fonts->AddFontFromFileTTF(jp_path.c_str(), font_size, &font_cfg, io.Fonts->GetGlyphRangesJapanese());
     }
@@ -1901,7 +1901,7 @@ void OSD::load_font() {
   if (!primary_font && io.Fonts->Fonts.Size == 0) {
     OSD_LOG("No CJK fonts found, using default font");
     ImFontConfig cfg;
-    cfg.SizePixels = 13.0f;
+    cfg.SizePixels = font_size;
     io.Fonts->AddFontDefault(&cfg);
   }
 
