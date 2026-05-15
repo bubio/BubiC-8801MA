@@ -19,6 +19,32 @@
 
 #define OSD_LOG(fmt, ...) do { fprintf(stderr, "[OSD] " fmt "\n", ##__VA_ARGS__); fflush(stderr); } while(0)
 
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#include <vector>
+static std::string nfd_to_nfc(const std::string& input) {
+    if (input.empty()) return input;
+    CFStringRef cf_input = CFStringCreateWithCString(kCFAllocatorDefault, input.c_str(), kCFStringEncodingUTF8);
+    if (!cf_input) return input;
+
+    CFMutableStringRef cf_mutable = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, cf_input);
+    CFStringNormalize(cf_mutable, kCFStringNormalizationFormC);
+
+    CFIndex length = CFStringGetMaximumSizeForEncoding(CFStringGetLength(cf_mutable), kCFStringEncodingUTF8) + 1;
+    std::vector<char> buffer(length);
+    if (CFStringGetCString(cf_mutable, buffer.data(), length, kCFStringEncodingUTF8)) {
+        std::string result(buffer.data());
+        CFRelease(cf_input);
+        CFRelease(cf_mutable);
+        return result;
+    }
+
+    CFRelease(cf_input);
+    CFRelease(cf_mutable);
+    return input;
+}
+#endif
+
 namespace fs = std::filesystem;
 
 // Localization
@@ -197,7 +223,11 @@ static std::string tchar_path_to_utf8(const _TCHAR* path) {
 #else
 // On non-Windows, just use string() (assumes UTF-8 locale)
 static std::string path_to_utf8(const fs::path& p) {
+#ifdef __APPLE__
+  return nfd_to_nfc(p.string());
+#else
   return p.string();
+#endif
 }
 
 static fs::path utf8_to_fs_path(const char* utf8) {
@@ -206,7 +236,12 @@ static fs::path utf8_to_fs_path(const char* utf8) {
 
 static std::string tchar_path_to_utf8(const _TCHAR* path) {
   const char* cpath = tchar_to_char(path);
-  return std::string(cpath ? cpath : "");
+  std::string result = std::string(cpath ? cpath : "");
+#ifdef __APPLE__
+  return nfd_to_nfc(result);
+#else
+  return result;
+#endif
 }
 #endif
 
@@ -239,29 +274,6 @@ static const _TCHAR* utf8_path_to_tchar(const char* utf8) {
   return char_to_tchar(utf8);
 #endif
 }
-
-#ifdef __APPLE__
-#include <CoreFoundation/CoreFoundation.h>
-static std::string nfd_to_nfc(const std::string& input) {
-    CFStringRef cf_input = CFStringCreateWithCString(kCFAllocatorDefault, input.c_str(), kCFStringEncodingUTF8);
-    if (!cf_input) return input;
-
-    CFMutableStringRef cf_mutable = CFStringCreateMutableCopy(kCFAllocatorDefault, 0, cf_input);
-    CFStringNormalize(cf_mutable, kCFStringNormalizationFormC);
-
-    char buffer[1024];
-    if (CFStringGetCString(cf_mutable, buffer, sizeof(buffer), kCFStringEncodingUTF8)) {
-        std::string result(buffer);
-        CFRelease(cf_input);
-        CFRelease(cf_mutable);
-        return result;
-    }
-
-    CFRelease(cf_input);
-    CFRelease(cf_mutable);
-    return input;
-}
-#endif
 
 static const int kHostFrequencyTable[5] = {
     44100, 48000, 55467, 88200, 96000
@@ -2295,9 +2307,6 @@ void OSD::process_pending_insert() {
 
   fs::path file_p = utf8_to_fs_path(full_path.c_str());
   std::string display_name = path_to_utf8(file_p.filename());
-#ifdef __APPLE__
-  display_name = nfd_to_nfc(display_name);
-#endif
 
   if (pending_drive == 0) {
     // FD1: Always insert the first image (Bank 0)
