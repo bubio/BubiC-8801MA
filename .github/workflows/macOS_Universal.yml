@@ -27,7 +27,7 @@ jobs:
 
       - name: Upload .app Artifact
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA-macos-universal-portable
           path: build/BubiC-8801MA.app
@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload DMG Artifact
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA-macos-universal.dmg
           path: build/BubiC-8801MA-macos-universal.dmg

@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload Portable Artifact
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA-linux-x86_64-portable
           path: dist/BubiC-8801MA-linux-x86_64
@@ -91,14 +91,14 @@ jobs:
 
       - name: Upload DEB Artifact
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA_Linux_x86_64_deb
           path: build/BubiC-8801MA-linux-x86_64.deb
 
       - name: Upload RPM Artifact
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA_Linux_x86_64_rpm
           path: build/BubiC-8801MA-linux-x86_64.rpm
