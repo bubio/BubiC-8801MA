@@ -62,7 +62,7 @@ jobs:
           echo "artifact_dir_path=$packageDir" >> $env:GITHUB_ENV
 
       - name: Upload Portable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: BubiC-8801MA-windows-${{ matrix.arch }}-portable
           path: ${{ env.artifact_dir_path }}
