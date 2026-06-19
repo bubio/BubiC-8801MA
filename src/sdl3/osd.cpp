@@ -120,7 +120,13 @@ namespace Lang {
   static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran"};
   static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran"};
   static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存...", "保存截图...", "스크린샷 저장...", "Guardar captura de pantalla...", "Enregistrer une capture d'écran..."};
-  static constexpr Msg Keyboard = {"Keyboard", "キーボード", "键盘", "키보드", "Teclado", "Clavier"};
+  static constexpr Msg Input = {"Input", "入力", "输入", "입력", "Entrada", "Entrée"};
+  static constexpr Msg EnableMouseInput = {"Enable Mouse Input", "マウス入力を有効化", "启用鼠标输入", "마우스 입력 사용", "Activar entrada de ratón", "Activer l'entrée souris"};
+  static constexpr Msg ReleaseMouseCaptureHint = {"F12 releases mouse capture", "F12でマウスキャプチャを解放", "按F12释放鼠标捕获", "F12로 마우스 캡처 해제", "F12 libera la captura del ratón", "F12 libère la capture de la souris"};
+  static constexpr Msg MouseMode = {"Mouse Mode", "マウス方式", "鼠标模式", "마우스 모드", "Modo de ratón", "Mode souris"};
+  static constexpr Msg Mouse = {"Bus Mouse (PC-8872)", "バスマウス (PC-8872)", "总线鼠标 (PC-8872)", "버스 마우스 (PC-8872)", "Ratón de bus (PC-8872)", "Souris bus (PC-8872)"};
+  static constexpr Msg MouseAsJoystick = {"Mouse as Joystick", "マウス擬似ジョイスティック", "鼠标模拟游戏杆", "마우스 조이스틱 모드", "Ratón como joystick", "Souris comme joystick"};
+  static constexpr Msg MouseSensitivity = {"Mouse Sensitivity", "マウス感度", "鼠标灵敏度", "마우스 감도", "Sensibilidad del ratón", "Sensibilité de la souris"};
   static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique"};
   static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드に 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
   static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数", "采样率", "샘플링 주파수", "Frecuencia de muestreo", "Fréquence d'échantillonnage"};
@@ -144,6 +150,26 @@ namespace Lang {
   static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f"};
   static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f"};
 }
+
+// Alpha mask derived from the supplied mouse.png and reduced to 11x16.
+static constexpr uint8_t kMouseIconAlpha[11 * 16] = {
+  0x00, 0x03, 0x30, 0x7b, 0xbc, 0x1f, 0x8b, 0xa2, 0x4f, 0x11, 0x00,
+  0x05, 0x80, 0x94, 0x54, 0xa3, 0x92, 0xbd, 0x55, 0x79, 0xa1, 0x34,
+  0x25, 0x99, 0x07, 0x00, 0x8d, 0x84, 0xb4, 0x19, 0x00, 0x5a, 0x80,
+  0x48, 0x7d, 0x00, 0x00, 0x95, 0xc9, 0xd2, 0x1b, 0x00, 0x2a, 0xa3,
+  0x65, 0x62, 0x00, 0x00, 0x88, 0xda, 0xc4, 0x1a, 0x00, 0x0f, 0xad,
+  0x76, 0x71, 0x00, 0x00, 0x82, 0xe8, 0xc0, 0x1b, 0x00, 0x0b, 0xad,
+  0xcd, 0xa6, 0x00, 0x00, 0x75, 0xd3, 0xb8, 0x13, 0x00, 0x16, 0xaa,
+  0xa5, 0xc4, 0x0f, 0x00, 0x19, 0xb2, 0x54, 0x00, 0x00, 0x3b, 0xb0,
+  0x81, 0xf9, 0x2c, 0x00, 0x00, 0x6b, 0x1f, 0x00, 0x00, 0xa0, 0xc3,
+  0x51, 0xcf, 0x4a, 0x00, 0x00, 0x16, 0x07, 0x00, 0x00, 0x9f, 0xc1,
+  0x35, 0xed, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8d, 0xd0,
+  0x30, 0xff, 0x2e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0xf5,
+  0x1f, 0xd6, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56, 0xdc,
+  0x00, 0x93, 0x72, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x9f, 0x6e,
+  0x00, 0x18, 0xa5, 0x78, 0x21, 0x0b, 0x0d, 0x2e, 0x93, 0x88, 0x07,
+  0x00, 0x00, 0x13, 0x7e, 0xb8, 0xb8, 0xb8, 0xb1, 0x62, 0x05, 0x00
+};
 
 // Get user home directory
 static std::string get_home_directory() {
@@ -397,6 +423,12 @@ OSD::OSD() {
   vm_screen_buffer = NULL;
   vm_screen_width = 0;
   vm_screen_height = 0;
+  vm_screen_rect = {0, 0, 0, 0};
+  vm_screen_rect_valid = false;
+  mouse_icon_texture = NULL;
+  mouse_remainder_x = 0;
+  mouse_remainder_y = 0;
+  mouse_enabled = false;
   show_state_dialog = false;
   state_dialog_selected = 0;
   for (int i = 0; i < 10; i++) {
@@ -543,6 +575,7 @@ void OSD::initialize(int rate, int samples) {
   OSD_LOG("Calling initialize_imgui()...");
   initialize_imgui();
   OSD_LOG("initialize_imgui() done, imgui_initialized=%d", imgui_initialized);
+  initialize_mouse_icon();
 
   if (vm_screen_buffer) {
     set_vm_screen_size(640, 400, window_width, window_height, window_width, window_height);
@@ -551,7 +584,9 @@ void OSD::initialize(int rate, int samples) {
 }
 
 void OSD::release() {
+  disable_mouse();
   release_state_thumbnails();
+  release_mouse_icon();
   release_sound();
   release_imgui();
   if (joystick) {
@@ -803,6 +838,10 @@ void OSD::update_input() {
     if (event.type == SDL_EVENT_QUIT) {
       terminated = true;
     }
+    if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+      disable_mouse();
+      clear_all_pressed_keys();
+    }
     if (event.type == SDL_EVENT_DROP_FILE) {
       if (event.drop.data) {
         pending_dd_path = event.drop.data;
@@ -825,6 +864,14 @@ void OSD::update_input() {
 void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
   if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
     bool down = (event.type == SDL_EVENT_KEY_DOWN);
+    if (event.key.scancode == SDL_SCANCODE_F12 && mouse_enabled) {
+      if (down) {
+        disable_mouse();
+        show_menu = true;
+        last_ui_interaction_tick = SDL_GetTicks();
+      }
+      return;
+    }
     int vk = 0;
     switch (event.key.scancode) {
     case SDL_SCANCODE_ESCAPE: vk = 0x1B; break;
@@ -982,15 +1029,83 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
       }
     }
   } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
-    mouse_status[0] += (int32_t)event.motion.xrel;
-    mouse_status[1] += (int32_t)event.motion.yrel;
-    last_ui_interaction_tick = SDL_GetTicks(); // Reset UI visibility timer
+    if (mouse_enabled) {
+      const double sensitivity = config.mouse_sensitivity / 100.0;
+      const double scaled_x = event.motion.xrel * sensitivity + mouse_remainder_x;
+      const double scaled_y = event.motion.yrel * sensitivity + mouse_remainder_y;
+      const int32_t whole_x = (int32_t)scaled_x;
+      const int32_t whole_y = (int32_t)scaled_y;
+      mouse_status[0] += whole_x;
+      mouse_status[1] += whole_y;
+      mouse_remainder_x = scaled_x - whole_x;
+      mouse_remainder_y = scaled_y - whole_y;
+    } else {
+      last_ui_interaction_tick = SDL_GetTicks();
+    }
   } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
     bool down = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
-    if (event.button.button == SDL_BUTTON_LEFT) mouse_status[2] = down ? 1 : 0;
-    if (event.button.button == SDL_BUTTON_RIGHT) mouse_status[3] = down ? 1 : 0;
-    last_ui_interaction_tick = SDL_GetTicks(); // Reset UI visibility timer
+    if (!mouse_enabled) {
+      last_ui_interaction_tick = SDL_GetTicks();
+      if (down && event.button.button == SDL_BUTTON_LEFT &&
+          config.mouse_enabled && vm_screen_rect_valid &&
+          event.button.x >= vm_screen_rect.x &&
+          event.button.x < vm_screen_rect.x + vm_screen_rect.w &&
+          event.button.y >= vm_screen_rect.y &&
+          event.button.y < vm_screen_rect.y + vm_screen_rect.h) {
+        enable_mouse();
+      }
+      return;
+    }
+    if (event.button.button == SDL_BUTTON_LEFT) {
+      if (down) mouse_status[2] |= 0x01;
+      else mouse_status[2] &= ~0x01;
+    } else if (event.button.button == SDL_BUTTON_RIGHT) {
+      if (down) mouse_status[2] |= 0x02;
+      else mouse_status[2] &= ~0x02;
+    }
   }
+}
+
+void OSD::clear_mouse_state() {
+  mouse_status[0] = 0;
+  mouse_status[1] = 0;
+  mouse_status[2] = 0;
+  mouse_status[3] = 0;
+  mouse_remainder_x = 0;
+  mouse_remainder_y = 0;
+}
+
+void OSD::enable_mouse() {
+  if (mouse_enabled || !window || !config.mouse_enabled) return;
+  clear_mouse_state();
+  if (SDL_SetWindowRelativeMouseMode(window, true)) {
+    mouse_enabled = true;
+  } else {
+    OSD_LOG("Failed to enable relative mouse mode: %s", SDL_GetError());
+  }
+}
+
+void OSD::disable_mouse() {
+  if (mouse_enabled && window) {
+    if (!SDL_SetWindowRelativeMouseMode(window, false)) {
+      OSD_LOG("Failed to disable relative mouse mode: %s", SDL_GetError());
+    }
+  }
+  mouse_enabled = false;
+  clear_mouse_state();
+  if (window) SDL_ShowCursor();
+}
+
+void OSD::toggle_mouse() {
+  if (mouse_enabled) disable_mouse();
+  else enable_mouse();
+}
+
+void OSD::consume_mouse_delta(int32_t &dx, int32_t &dy) {
+  dx = mouse_status[0];
+  dy = mouse_status[1];
+  mouse_status[0] = 0;
+  mouse_status[1] = 0;
 }
 
 void OSD::clear_all_pressed_keys() {
@@ -1295,6 +1410,8 @@ int OSD::draw_screen() {
     }
 
     SDL_FRect dest_rect = { draw_x, draw_y, draw_w, draw_h };
+    vm_screen_rect = dest_rect;
+    vm_screen_rect_valid = true;
     SDL_RenderTexture(renderer, screen_texture, NULL, &dest_rect);
 
     process_pending_insert();
@@ -1496,6 +1613,18 @@ void OSD::draw_status_bar() {
         ImGui::Text("%s", clock_text);
       }
       right -= (clock_w + 16.0f);
+    }
+
+    if (mouse_enabled && mouse_icon_texture) {
+      const float icon_w = 11.0f;
+      const float icon_h = 16.0f;
+      const float icon_x = right - icon_w;
+      const float icon_y = ImGui::GetWindowPos().y +
+                           (ImGui::GetWindowHeight() - icon_h) * 0.5f - 2.0f;
+      ImGui::GetWindowDrawList()->AddImage(
+          (ImTextureID)(uintptr_t)mouse_icon_texture,
+          ImVec2(icon_x, icon_y),
+          ImVec2(icon_x + icon_w, icon_y + icon_h));
     }
 
     ImGui::End();
@@ -2014,6 +2143,38 @@ void OSD::release_imgui() {
   imgui_initialized = false;
 }
 
+void OSD::initialize_mouse_icon() {
+  if (!renderer || mouse_icon_texture) return;
+
+  uint8_t pixels[11 * 16 * 4];
+  for (size_t i = 0; i < sizeof(kMouseIconAlpha); i++) {
+    pixels[i * 4 + 0] = 224;
+    pixels[i * 4 + 1] = 224;
+    pixels[i * 4 + 2] = 224;
+    pixels[i * 4 + 3] = kMouseIconAlpha[i];
+  }
+  SDL_Surface *surface = SDL_CreateSurfaceFrom(
+      11, 16, SDL_PIXELFORMAT_RGBA32, pixels, 11 * 4);
+  if (!surface) {
+    OSD_LOG("Failed to create mouse icon surface: %s", SDL_GetError());
+    return;
+  }
+  mouse_icon_texture = SDL_CreateTextureFromSurface(renderer, surface);
+  SDL_DestroySurface(surface);
+  if (!mouse_icon_texture) {
+    OSD_LOG("Failed to create mouse icon texture: %s", SDL_GetError());
+  } else {
+    SDL_SetTextureScaleMode(mouse_icon_texture, SDL_SCALEMODE_LINEAR);
+  }
+}
+
+void OSD::release_mouse_icon() {
+  if (mouse_icon_texture) {
+    SDL_DestroyTexture(mouse_icon_texture);
+    mouse_icon_texture = NULL;
+  }
+}
+
 bool OSD::draw_menu_contents() {
     bool menu_tree_open = false;
     if (ImGui::BeginMenu(Lang::Control)) {
@@ -2208,7 +2369,43 @@ bool OSD::draw_menu_contents() {
         if (ImGui::MenuItem(Lang::SaveScreenshot)) { show_screenshot_dialog(); }
         ImGui::EndMenu();
       }
-      if (ImGui::BeginMenu(Lang::Keyboard)) {
+      if (ImGui::BeginMenu(Lang::Input)) {
+        if (ImGui::MenuItem(Lang::EnableMouseInput, NULL,
+                            config.mouse_enabled)) {
+          config.mouse_enabled = !config.mouse_enabled;
+          if (!config.mouse_enabled) disable_mouse();
+          if (vm) vm->update_config();
+        }
+        ImGui::MenuItem(Lang::ReleaseMouseCaptureHint, NULL, false, false);
+        if (ImGui::BeginMenu(Lang::MouseMode, config.mouse_enabled)) {
+          if (ImGui::MenuItem(Lang::Mouse, NULL, config.joystick_type == 1)) {
+            disable_mouse();
+            config.joystick_type = 1;
+            if (vm) vm->update_config();
+          }
+          if (ImGui::MenuItem(Lang::MouseAsJoystick, NULL,
+                              config.joystick_type == 2)) {
+            disable_mouse();
+            config.joystick_type = 2;
+            if (vm) vm->update_config();
+          }
+          ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Lang::MouseSensitivity,
+                             config.mouse_enabled)) {
+          static const int sensitivity_values[] = {50, 75, 100, 150, 200, 300};
+          static const char *sensitivity_labels[] = {
+              "0.5x", "0.75x", "1.0x", "1.5x", "2.0x", "3.0x"
+          };
+          for (int i = 0; i < 6; i++) {
+            if (ImGui::MenuItem(sensitivity_labels[i], NULL,
+                                config.mouse_sensitivity == sensitivity_values[i])) {
+              config.mouse_sensitivity = sensitivity_values[i];
+            }
+          }
+          ImGui::EndMenu();
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem(Lang::MapCursorToNumpad, NULL, config.cursor_as_numpad)) {
           config.cursor_as_numpad = !config.cursor_as_numpad;
         }

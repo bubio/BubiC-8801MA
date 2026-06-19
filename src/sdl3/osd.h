@@ -55,6 +55,9 @@ private:
   uint8_t key_status[256];
   uint32_t joy_status[4];
   int32_t mouse_status[8];
+  double mouse_remainder_x;
+  double mouse_remainder_y;
+  bool mouse_enabled;
   bool key_shift_pressed, key_shift_released;
   bool key_caps_locked;
 
@@ -68,6 +71,9 @@ private:
   scrntype_t *vm_screen_buffer;
   int vm_screen_width, vm_screen_height;
   int window_width, window_height;
+  SDL_FRect vm_screen_rect;
+  bool vm_screen_rect_valid;
+  SDL_Texture *mouse_icon_texture;
 
   // Sound
   void initialize_sound(int rate, int samples);
@@ -143,6 +149,9 @@ private:
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
   void clear_all_pressed_keys();
+  void clear_mouse_state();
+  void initialize_mouse_icon();
+  void release_mouse_icon();
 
 public:
   OSD();
@@ -200,10 +209,11 @@ public:
   void key_up(int code, bool extended);
   uint8_t *get_key_buffer() { return key_status; }
   void key_lost_focus() {}
-  void enable_mouse() {}
-  void disable_mouse() {}
-  void toggle_mouse() {}
-  bool is_mouse_enabled() { return false; }
+  void enable_mouse();
+  void disable_mouse();
+  void toggle_mouse();
+  bool is_mouse_enabled() { return mouse_enabled; }
+  void consume_mouse_delta(int32_t &dx, int32_t &dy);
   int32_t *get_mouse_buffer() { return mouse_status; }
   uint32_t *get_joy_buffer() { return joy_status; }
   // Native key simulation
