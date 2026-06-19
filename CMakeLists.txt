@@ -71,6 +71,8 @@ set(SDL_SOURCES
 # Windows       : use official binary
 # =====================================
 
+set(BUBIC_SDL3_VERSION "3.4.10")
+
 if(WIN32)
     # Windows: use prebuilt SDL3 (DLL)
     find_package(SDL3 REQUIRED CONFIG)
@@ -82,7 +84,7 @@ else()
     FetchContent_Declare(
         SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG        release-3.4.8
+        GIT_TAG        release-${BUBIC_SDL3_VERSION}
         GIT_SHALLOW    TRUE
     )
 
