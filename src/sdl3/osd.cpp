@@ -834,6 +834,19 @@ void OSD::update_input() {
   SDL_Event event;
   ImGuiIO &io = ImGui::GetIO();
   while (SDL_PollEvent(&event)) {
+    // Record actual pointer input before ImGui gets a chance to consume it.
+    // Merely hovering a UI item must not keep the fullscreen UI visible.
+    const bool pointer_moved =
+        event.type == SDL_EVENT_MOUSE_MOTION &&
+        (event.motion.xrel != 0.0f || event.motion.yrel != 0.0f);
+    const bool pointer_clicked =
+        event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+        event.type == SDL_EVENT_MOUSE_BUTTON_UP;
+    if (!mouse_enabled &&
+        (pointer_moved || pointer_clicked ||
+         event.type == SDL_EVENT_MOUSE_WHEEL)) {
+      last_ui_interaction_tick = SDL_GetTicks();
+    }
     ImGui_ImplSDL3_ProcessEvent(&event);
     if (event.type == SDL_EVENT_QUIT) {
       terminated = true;
@@ -841,6 +854,11 @@ void OSD::update_input() {
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
       disable_mouse();
       clear_all_pressed_keys();
+    }
+    if (event.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN) {
+      // Start the inactivity period after the asynchronous fullscreen
+      // transition, rather than relying on the menu click that requested it.
+      last_ui_interaction_tick = SDL_GetTicks();
     }
     if (event.type == SDL_EVENT_DROP_FILE) {
       if (event.drop.data) {
@@ -1039,13 +1057,10 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
       mouse_status[1] += whole_y;
       mouse_remainder_x = scaled_x - whole_x;
       mouse_remainder_y = scaled_y - whole_y;
-    } else {
-      last_ui_interaction_tick = SDL_GetTicks();
     }
   } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
     bool down = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
     if (!mouse_enabled) {
-      last_ui_interaction_tick = SDL_GetTicks();
       if (down && event.button.button == SDL_BUTTON_LEFT &&
           config.mouse_enabled && vm_screen_rect_valid &&
           event.button.x >= vm_screen_rect.x &&
@@ -1306,14 +1321,14 @@ int OSD::draw_screen() {
     if (fb_scale_y <= 0.0f) fb_scale_y = 1.0f;
     SDL_SetRenderScale(renderer, fb_scale_x, fb_scale_y);
 
-    // Determine if UI should be visible
+    // Menus and keyboard focus must not override the inactivity timeout. An
+    // open menu is itself an ImGui popup, so treating every popup as a reason
+    // to stay visible leaves the fullscreen UI on indefinitely.
     bool ui_visible = !is_fullscreen ||
                       (current_tick - last_ui_interaction_tick < 5000) ||
-                      ImGui::IsPopupOpen((const char*)NULL, ImGuiPopupFlags_AnyPopupId) ||
-                      io.WantCaptureKeyboard;
+                      show_state_dialog || native_dialog_open;
 
       if (ui_visible) {
-        last_ui_interaction_tick = (ImGui::IsAnyItemActive() || ImGui::IsAnyItemHovered()) ? current_tick : last_ui_interaction_tick;
         SDL_ShowCursor();
       } else {
         if (is_fullscreen) SDL_HideCursor();
