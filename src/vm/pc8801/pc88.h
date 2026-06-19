@@ -337,6 +337,8 @@ private:
 	int mouse_phase;
 	int mouse_dx, mouse_dy;
 	int mouse_lx, mouse_ly;
+	int mouse_joy_latch;
+	uint8_t read_mouse_joy();
 #endif
 	
 	// intterrupt
@@ -623,4 +625,3 @@ public:
 };
 
 #endif
-

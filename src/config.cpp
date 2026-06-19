@@ -120,6 +120,8 @@ void initialize_config()
 	config.sound_frequency = 2;	// 55467Hz
 	config.sound_latency = 0;	// 50msec
 	config.master_volume = 100;
+	config.mouse_enabled = false;
+	config.mouse_sensitivity = 50;
 	config.sound_strict_rendering = true;
 	config.sound_mute_fm = false;
 	config.sound_mute_ssg = false;
@@ -202,7 +204,23 @@ void load_config(const _TCHAR* config_path)
 	#endif
 	#ifdef USE_JOYSTICK_TYPE
 		config.joystick_type = MyGetPrivateProfileInt(_T("Control"), _T("JoystickType"), config.joystick_type, config_path);
+		// Legacy SDL builds encoded mouse enable/mode entirely in JoystickType:
+		// 0=off/joystick, 1=bus mouse, 2=mouse-as-joystick.
+		config.mouse_enabled = MyGetPrivateProfileBool(
+			_T("Control"), _T("MouseEnabled"), config.joystick_type != 0, config_path);
+		if (config.joystick_type != 1 && config.joystick_type != 2) {
+			config.joystick_type = 1;
+		}
+	#else
+		config.mouse_enabled = MyGetPrivateProfileBool(
+			_T("Control"), _T("MouseEnabled"), config.mouse_enabled, config_path);
 	#endif
+	config.mouse_sensitivity = MyGetPrivateProfileInt(_T("Control"), _T("MouseSensitivity"), config.mouse_sensitivity, config_path);
+	if (config.mouse_sensitivity != 50 && config.mouse_sensitivity != 75 &&
+	    config.mouse_sensitivity != 100 && config.mouse_sensitivity != 150 &&
+	    config.mouse_sensitivity != 200 && config.mouse_sensitivity != 300) {
+		config.mouse_sensitivity = 50;
+	}
 	#ifdef USE_SOUND_TYPE
 		config.sound_type = MyGetPrivateProfileInt(_T("Control"), _T("SoundType"), config.sound_type, config_path);
 	#endif
@@ -469,6 +487,8 @@ void save_config(const _TCHAR* config_path)
 	#ifdef USE_JOYSTICK_TYPE
 		MyWritePrivateProfileInt(_T("Control"), _T("JoystickType"), config.joystick_type, config_path);
 	#endif
+	MyWritePrivateProfileBool(_T("Control"), _T("MouseEnabled"), config.mouse_enabled, config_path);
+	MyWritePrivateProfileInt(_T("Control"), _T("MouseSensitivity"), config.mouse_sensitivity, config_path);
 	#ifdef USE_SOUND_TYPE
 		MyWritePrivateProfileInt(_T("Control"), _T("SoundType"), config.sound_type, config_path);
 	#endif

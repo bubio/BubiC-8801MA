@@ -271,6 +271,7 @@ public:
 #endif
 #ifdef USE_MOUSE
   const int32_t *get_mouse_buffer();
+  void consume_mouse_delta(int32_t &dx, int32_t &dy);
 #endif
 
   // screen

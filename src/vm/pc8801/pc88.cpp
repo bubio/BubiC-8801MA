@@ -39,7 +39,7 @@
 
 #define DEVICE_JOYSTICK 0
 #define DEVICE_MOUSE 1
-#define DEVICE_JOYMOUSE 2 // not supported yet
+#define DEVICE_JOYMOUSE 2
 
 #define EVENT_TIMER 0
 #define EVENT_BUSREQ 1
@@ -129,8 +129,6 @@
 #else
 #define Port40_GHSM false
 #endif
-#define Port40_JOP1 (port[0x40] & 0x40)
-
 #ifdef SUPPORT_PC88_OPN1
 #define Port44_OPNCH port[0x44]
 #endif
@@ -717,6 +715,7 @@ void PC88::reset() {
   mouse_strobe_clock = get_current_clock();
   mouse_phase = -1;
   mouse_dx = mouse_dy = mouse_lx = mouse_ly = 0;
+  mouse_joy_latch = -1;
 #endif
 
   // interrupt
@@ -1253,10 +1252,10 @@ void PC88::write_io8(uint32_t addr, uint32_t data) {
 #endif
     beep_on = ((data & 0x20) != 0);
 #ifdef SUPPORT_PC88_JOYSTICK
-    if (mod & 0x40) {
-      if (Port40_JOP1 &&
-          (mouse_phase == -1 ||
-           get_passed_clock(mouse_strobe_clock) > mouse_strobe_clock_lim)) {
+    if ((mod & 0x40) && config.mouse_enabled &&
+        config.joystick_type == DEVICE_MOUSE) {
+      if (mouse_phase == -1 ||
+          get_passed_clock(mouse_strobe_clock) > mouse_strobe_clock_lim) {
         mouse_phase = 0; // mouse_dx = mouse_dy = 0;
       } else {
         mouse_phase = (mouse_phase + 1) & 3;
@@ -1915,7 +1914,8 @@ uint32_t PC88::read_io8_debug(uint32_t addr)
     if (d_opn1 != NULL) {
       if (Port44_OPNCH == 14) {
 #ifdef SUPPORT_PC88_JOYSTICK
-        if (config.joystick_type == DEVICE_JOYSTICK) {
+        if (!config.mouse_enabled ||
+            config.joystick_type == DEVICE_JOYSTICK) {
           return (~(joystick_status[0] >> 0) & 0x0f) | 0xf0;
         } else if (config.joystick_type == DEVICE_MOUSE) {
           switch (mouse_phase) {
@@ -1929,14 +1929,18 @@ uint32_t PC88::read_io8_debug(uint32_t addr)
             return ((mouse_ly >> 0) & 0x0f) | 0xf0;
           }
           return 0xff; // ???
+        } else if (config.joystick_type == DEVICE_JOYMOUSE) {
+          return read_mouse_joy();
         }
 #endif
         return 0xff;
       } else if (Port44_OPNCH == 15) {
 #ifdef SUPPORT_PC88_JOYSTICK
-        if (config.joystick_type == DEVICE_JOYSTICK) {
+        if (!config.mouse_enabled ||
+            config.joystick_type == DEVICE_JOYSTICK) {
           return (~(joystick_status[0] >> 4) & 0x03) | 0xfc;
-        } else if (config.joystick_type == DEVICE_MOUSE) {
+        } else if (config.joystick_type == DEVICE_MOUSE ||
+                   config.joystick_type == DEVICE_JOYMOUSE) {
           return (~mouse_status[2] & 0x03) | 0xfc;
         }
 #endif
@@ -2111,7 +2115,8 @@ uint32_t PC88::read_io8_debug(uint32_t addr)
     if (d_opn2 != NULL) {
       if (PortA8_OPNCH == 14) {
 #ifdef SUPPORT_PC88_JOYSTICK
-        if (config.joystick_type == DEVICE_JOYSTICK) {
+        if (!config.mouse_enabled ||
+            config.joystick_type == DEVICE_JOYSTICK) {
           return (~(joystick_status[0] >> 0) & 0x0f) | 0xf0;
         } else if (config.joystick_type == DEVICE_MOUSE) {
           switch (mouse_phase) {
@@ -2125,14 +2130,18 @@ uint32_t PC88::read_io8_debug(uint32_t addr)
             return ((mouse_ly >> 0) & 0x0f) | 0xf0;
           }
           return 0xff; // ???
+        } else if (config.joystick_type == DEVICE_JOYMOUSE) {
+          return read_mouse_joy();
         }
 #endif
         return 0xff;
       } else if (PortA8_OPNCH == 15) {
 #ifdef SUPPORT_PC88_JOYSTICK
-        if (config.joystick_type == DEVICE_JOYSTICK) {
+        if (!config.mouse_enabled ||
+            config.joystick_type == DEVICE_JOYSTICK) {
           return (~(joystick_status[0] >> 4) & 0x03) | 0xfc;
-        } else if (config.joystick_type == DEVICE_MOUSE) {
+        } else if (config.joystick_type == DEVICE_MOUSE ||
+                   config.joystick_type == DEVICE_JOYMOUSE) {
           return (~mouse_status[2] & 0x03) | 0xfc;
         }
 #endif
@@ -2250,6 +2259,9 @@ void PC88::update_config() {
   cpu_clock_high_fe2 = (config.cpu_type == 2); // 8MHz (FE2/MC)
 #else
   cpu_clock_low = true;
+#endif
+#ifdef SUPPORT_PC88_JOYSTICK
+  mouse_strobe_clock_lim = (int)((cpu_clock_low ? 720 : 1440) * 1.25);
 #endif
   
   // Re-calculate event manager CPU clock
@@ -2779,10 +2791,35 @@ void PC88::event_frame() {
   crtc.update_blink();
 
 #ifdef SUPPORT_PC88_JOYSTICK
-  mouse_dx += mouse_status[0];
-  mouse_dy += mouse_status[1];
+  int32_t host_mouse_dx = 0;
+  int32_t host_mouse_dy = 0;
+  emu->consume_mouse_delta(host_mouse_dx, host_mouse_dy);
+  if (config.mouse_enabled) {
+    mouse_dx += host_mouse_dx;
+    mouse_dy += host_mouse_dy;
+  } else {
+    mouse_dx = mouse_dy = 0;
+  }
+  // Joy-mouse movement is consumed lazily when OPN port A is read. VSync only
+  // releases the previous direction latch, matching M88/Bubilator88 behavior.
+  mouse_joy_latch = -1;
 #endif
 }
+
+#ifdef SUPPORT_PC88_JOYSTICK
+uint8_t PC88::read_mouse_joy() {
+  if (mouse_joy_latch < 0) {
+    static constexpr int kJoyThreshold = 3;
+    mouse_joy_latch = 0xff;
+    if (mouse_dy <= -kJoyThreshold) mouse_joy_latch &= ~0x01; // up
+    if (mouse_dy >=  kJoyThreshold) mouse_joy_latch &= ~0x02; // down
+    if (mouse_dx <= -kJoyThreshold) mouse_joy_latch &= ~0x04; // left
+    if (mouse_dx >=  kJoyThreshold) mouse_joy_latch &= ~0x08; // right
+    mouse_dx = mouse_dy = 0;
+  }
+  return (uint8_t)mouse_joy_latch;
+}
+#endif
 
 void PC88::event_vline(int v, int clock) {
   int disp_line = crtc.height * crtc.char_height;
@@ -4578,6 +4615,7 @@ bool PC88::process_state(FILEIO *state_fio, bool loading) {
   state_fio->StateValue(mouse_dy);
   state_fio->StateValue(mouse_lx);
   state_fio->StateValue(mouse_ly);
+  if (loading) mouse_joy_latch = -1;
 #endif
   state_fio->StateValue(intr_req);
 #ifdef SUPPORT_PC88_OPN1

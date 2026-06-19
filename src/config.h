@@ -98,6 +98,8 @@ typedef struct {
 	#if defined(USE_SHARED_DLL) || defined(USE_JOYSTICK_TYPE)
 		int joystick_type;
 	#endif
+	bool mouse_enabled;
+	int mouse_sensitivity; // percentage: 50, 75, 100, 150, 200, or 300
 	#if defined(USE_SHARED_DLL) || defined(USE_SOUND_TYPE)
 		int sound_type;
 	#endif
@@ -279,4 +281,3 @@ typedef struct {
 extern DLL_PREFIX config_t config;
 
 #endif
-

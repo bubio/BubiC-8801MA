@@ -1626,6 +1626,10 @@ const uint32_t *EMU::get_joy_buffer() { return (const uint32_t *)joy_status; }
 const int32_t *EMU::get_mouse_buffer() {
   return (const int32_t *)osd->get_mouse_buffer();
 }
+
+void EMU::consume_mouse_delta(int32_t &dx, int32_t &dy) {
+  osd->consume_mouse_delta(dx, dy);
+}
 #endif
 
 // ----------------------------------------------------------------------------
@@ -3113,9 +3117,13 @@ void EMU::load_state(const _TCHAR *file_path) {
 bool EMU::load_state_tmp(const _TCHAR *file_path) {
   bool result = false;
   FILEIO *fio = new FILEIO();
-  // Host sound settings are not restored from state.
+  // Host sound and input settings are not restored from state.
   const int host_sound_frequency = sanitize_sound_frequency_index(config.sound_frequency);
   const int host_sound_latency = sanitize_sound_latency_index(config.sound_latency);
+  const bool host_mouse_enabled = config.mouse_enabled;
+#ifdef USE_JOYSTICK_TYPE
+  const int host_joystick_type = config.joystick_type;
+#endif
   osd->lock_vm();
 #ifdef USE_ZLIB
   //	if(config.compress_state) {
@@ -3132,6 +3140,10 @@ bool EMU::load_state_tmp(const _TCHAR *file_path) {
       if (process_config_state((void *)fio, true)) {
         config.sound_frequency = host_sound_frequency;
         config.sound_latency = host_sound_latency;
+        config.mouse_enabled = host_mouse_enabled;
+#ifdef USE_JOYSTICK_TYPE
+        config.joystick_type = host_joystick_type;
+#endif
         // load inserted medias
 #ifdef USE_CART
         fio->Fread(&cart_status, sizeof(cart_status), 1);
