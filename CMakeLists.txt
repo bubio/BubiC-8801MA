@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(BubiC-8801MA VERSION 1.0.6 LANGUAGES CXX)
+project(BubiC-8801MA VERSION 1.0.7 LANGUAGES CXX)
 
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum macOS deployment target" FORCE)
