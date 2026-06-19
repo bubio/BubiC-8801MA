@@ -9,6 +9,9 @@ on:
     types: [published]
   workflow_dispatch:
 
+env:
+  SDL3_VERSION: 3.4.10
+
 jobs:
   build-windows:
     runs-on: windows-2022
@@ -45,7 +48,7 @@ jobs:
 
           # Copy correct architecture SDL3.dll from third_party
           $arch = "${{ matrix.arch }}".ToLower()
-          $sdlDll = "third_party/SDL3-3.4.2/lib/$arch/SDL3.dll"
+          $sdlDll = "third_party/SDL3-$env:SDL3_VERSION/lib/$arch/SDL3.dll"
           if (Test-Path $sdlDll) {
             Copy-Item $sdlDll $packageDir -Force
             Write-Host "Copied SDL3.dll from $sdlDll"
