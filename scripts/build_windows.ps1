@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $BuildDir = "build_$Arch"
-$SdlVersion = "3.4.10"
+$SdlVersion = "3.4.12"
 
 Write-Host "=== BubiC-8801MA Windows Build ===" -ForegroundColor Cyan
 Write-Host "  Build type : $BuildType"

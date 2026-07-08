@@ -2,15 +2,15 @@ name: Windows Build EXE/ZIP
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   release:
     types: [published]
   workflow_dispatch:
 
 env:
-  SDL3_VERSION: 3.4.10
+  SDL3_VERSION: 3.4.12
 
 jobs:
   build-windows:
@@ -19,7 +19,6 @@ jobs:
       matrix:
         arch: [x64, ARM64]
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v7
 
