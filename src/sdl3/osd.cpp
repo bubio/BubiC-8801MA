@@ -117,6 +117,9 @@ namespace Lang {
   static constexpr Msg Scanline = {"Scanline", "スキャンライン", "扫描线", "スキャンライン", "Líneas de escaneo", "Lignes de balayage"};
   static constexpr Msg IgnorePalette = {"Ignore Palette Changed", "パレット変更を無視", "忽略调色板更改", "팔레트 변경 무시", "Ignorar cambios de paleta", "Ignorer les changements de palette"};
   static constexpr Msg Host = {"Host", "ホスト", "主机", "호스트", "Host", "Hôte"};
+  static constexpr Msg AboutMenu = {"About %s...", "%sについて...", "关于%s...", "%s 정보...", "Acerca de %s...", "À propos de %s..."};
+  static constexpr Msg AboutTitle = {"About %s", "%sについて", "关于%s", "%s 정보", "Acerca de %s", "À propos de %s"};
+  static constexpr Msg VersionLabel = {"Version %s", "バージョン %s", "版本 %s", "버전 %s", "Versión %s", "Version %s"};
   static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran"};
   static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran"};
   static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存...", "保存截图...", "스크린샷 저장...", "Guardar captura de pantalla...", "Enregistrer une capture d'écran..."};
@@ -431,6 +434,7 @@ OSD::OSD() {
   mouse_enabled = false;
   show_state_dialog = false;
   state_dialog_selected = 0;
+  show_about_dialog = false;
   for (int i = 0; i < 10; i++) {
     state_thumb_tex[i] = NULL;
     state_thumb_w[i] = 0;
@@ -548,7 +552,7 @@ void OSD::initialize(int rate, int samples) {
   window_height = (int)(400 * scale) + 20 + 24; // Approximation for initial window
 
   OSD_LOG("Creating window %dx%d...", window_width, window_height);
-  std::string title = "BubiC-8801MA v" + std::string(APP_VERSION_STRING);
+  std::string title = APP_NAME_STRING " v" APP_VERSION_STRING;
   window = SDL_CreateWindow(title.c_str(), window_width, window_height,
                             SDL_WINDOW_HIGH_PIXEL_DENSITY);
   if (!window) {
@@ -1326,7 +1330,7 @@ int OSD::draw_screen() {
     // to stay visible leaves the fullscreen UI on indefinitely.
     bool ui_visible = !is_fullscreen ||
                       (current_tick - last_ui_interaction_tick < 5000) ||
-                      show_state_dialog || native_dialog_open;
+                      show_state_dialog || show_about_dialog || native_dialog_open;
 
       if (ui_visible) {
         SDL_ShowCursor();
@@ -1370,6 +1374,10 @@ int OSD::draw_screen() {
 
     if (show_state_dialog) {
       draw_state_dialog();
+    }
+
+    if (show_about_dialog) {
+      draw_about_dialog();
     }
 
     // VM Screen Scaling
@@ -1444,6 +1452,9 @@ int OSD::draw_screen() {
       next_reason |= UI_REASON_NATIVE_DIALOG;
     }
     if (show_state_dialog) {
+      next_reason |= UI_REASON_MENU_TREE;
+    }
+    if (show_about_dialog) {
       next_reason |= UI_REASON_MENU_TREE;
     }
     const bool next_ui_interacting = (next_reason != UI_REASON_NONE);
@@ -1870,6 +1881,76 @@ void OSD::draw_state_dialog() {
 
   ImGui::End();
   if (!open) close_state_dialog();
+}
+
+void OSD::open_about_dialog() {
+  show_about_dialog = true;
+}
+
+void OSD::close_about_dialog() {
+  show_about_dialog = false;
+}
+
+void OSD::draw_about_dialog() {
+  ImGuiViewport *viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + viewport->Size.x * 0.5f,
+                                 viewport->Pos.y + viewport->Size.y * 0.5f),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+  bool open = true;
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse |
+                           ImGuiWindowFlags_NoResize |
+                           ImGuiWindowFlags_AlwaysAutoResize;
+
+  char title[128];
+  snprintf(title, sizeof(title), (const char*)Lang::AboutTitle, APP_NAME_STRING);
+  char window_id[160];
+  snprintf(window_id, sizeof(window_id), "%s##about_dialog", title);
+  if (!ImGui::Begin(window_id, &open, flags)) {
+    ImGui::End();
+    if (!open) close_about_dialog();
+    return;
+  }
+
+  const float content_w = 260.0f;
+  ImGui::Dummy(ImVec2(content_w, 0));
+
+  ImGui::SetWindowFontScale(1.6f);
+  {
+    float text_w = ImGui::CalcTextSize(APP_NAME_STRING).x;
+    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+    ImGui::TextUnformatted(APP_NAME_STRING);
+  }
+  ImGui::SetWindowFontScale(1.0f);
+
+  ImGui::Spacing();
+
+  char version_text[64];
+  snprintf(version_text, sizeof(version_text), (const char*)Lang::VersionLabel, APP_VERSION_STRING);
+  {
+    float text_w = ImGui::CalcTextSize(version_text).x;
+    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+    ImGui::TextUnformatted(version_text);
+  }
+
+  {
+    float text_w = ImGui::CalcTextSize(APP_COPYRIGHT_STRING).x;
+    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+    ImGui::TextDisabled("%s", APP_COPYRIGHT_STRING);
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  float close_w = 100.0f;
+  ImGui::SetCursorPosX((content_w - close_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+  if (ImGui::Button((const char *)Lang::CloseBtn, ImVec2(close_w, 0))) {
+    open = false;
+  }
+
+  ImGui::End();
+  if (!open) close_about_dialog();
 }
 
 void OSD::add_extra_frames(int frames) {
@@ -2369,6 +2450,12 @@ bool OSD::draw_menu_contents() {
 
     if (ImGui::BeginMenu(Lang::Host)) {
       menu_tree_open = true;
+      char about_menu_label[128];
+      snprintf(about_menu_label, sizeof(about_menu_label), (const char*)Lang::AboutMenu, APP_NAME_STRING);
+      if (ImGui::MenuItem(about_menu_label)) {
+        open_about_dialog();
+      }
+      ImGui::Separator();
       if (ImGui::BeginMenu(Lang::Screen)) {
         if (ImGui::MenuItem(Lang::Fullscreen, NULL, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN))) {
           if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) SDL_SetWindowFullscreen(window, false);

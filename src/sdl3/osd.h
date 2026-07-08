@@ -146,6 +146,11 @@ private:
   void release_state_thumbnails();
   void save_state_thumbnail_for_slot(int slot);
   std::string thumbnail_path_for_state(const _TCHAR *state_path);
+  // About dialog
+  bool show_about_dialog;
+  void open_about_dialog();
+  void close_about_dialog();
+  void draw_about_dialog();
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
   void clear_all_pressed_keys();

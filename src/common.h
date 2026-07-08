@@ -11,6 +11,8 @@
 #define _COMMON_H_
 
 #define APP_VERSION_STRING "1.0.7"
+#define APP_NAME_STRING "BubiC-8801MA"
+#define APP_COPYRIGHT_STRING "Copyright (C) 2026 Bubio"
 
 // move shared codes to DLL???
 // #ifdef _USE_QT
