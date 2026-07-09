@@ -113,6 +113,18 @@ if ($LASTEXITCODE -ne 0) { throw "CMake configure failed (exit $LASTEXITCODE)" }
 cmake --build $BuildDir --config $BuildType -j $env:NUMBER_OF_PROCESSORS
 if ($LASTEXITCODE -ne 0) { throw "CMake build failed (exit $LASTEXITCODE)" }
 
+# Copy SDL3 runtime DLL next to the built exe so it can be run directly
+# without a separate `cmake --install` step.
+$OutDir = Join-Path $BuildDir $BuildType
+$DllArch = $CMakeArch.ToLower()
+$SdlDll = Join-Path $SdlRoot "lib\$DllArch\SDL3.dll"
+if (Test-Path $SdlDll) {
+    Copy-Item $SdlDll $OutDir -Force
+    Write-Host "[INFO] Copied SDL3.dll to $OutDir" -ForegroundColor Green
+} else {
+    Write-Warning "SDL3.dll not found at $SdlDll"
+}
+
 Write-Host ""
 Write-Host "=== Build complete ===" -ForegroundColor Green
 Write-Host "  EXE: $BuildDir\$BuildType\BubiC-8801MA.exe"

@@ -441,6 +441,7 @@ OSD::OSD() {
     state_thumb_h[i] = 0;
   }
   memset(key_status, 0, sizeof(key_status));
+  memset(key_romaji_active, 0, sizeof(key_romaji_active));
   memset(joy_status, 0, sizeof(joy_status));
   memset(mouse_status, 0, sizeof(mouse_status));
 }
@@ -999,28 +1000,115 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     case SDL_SCANCODE_APOSTROPHE: vk = 0xDE; break;
     default: break;
     }
+    // ASCII code for the romaji-to-kana engine (EMU::key_char), which needs
+    // the actual typed character rather than the VK-style code used above.
+    int ch = 0;
+    if ((vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') ||
+        vk == 0x08 || vk == 0x09 || vk == 0x0D || vk == 0x1B || vk == 0x20) {
+      ch = vk;
+    } else if (config.digit_as_numpad &&
+               (event.key.scancode == SDL_SCANCODE_0 ||
+                event.key.scancode == SDL_SCANCODE_1 ||
+                event.key.scancode == SDL_SCANCODE_2 ||
+                event.key.scancode == SDL_SCANCODE_3 ||
+                event.key.scancode == SDL_SCANCODE_4 ||
+                event.key.scancode == SDL_SCANCODE_5 ||
+                event.key.scancode == SDL_SCANCODE_6 ||
+                event.key.scancode == SDL_SCANCODE_7 ||
+                event.key.scancode == SDL_SCANCODE_8 ||
+                event.key.scancode == SDL_SCANCODE_9)) {
+      // config.digit_as_numpad remaps the top-row '0'-'9' scancodes to
+      // numpad VK codes above; recover the digit so it still reaches the
+      // romaji engine. Scoped to those scancodes (not SDL_SCANCODE_KP_*,
+      // which share the same VK range) so a genuine physical numpad press
+      // isn't misread as a typed digit character.
+      ch = '0' + (vk - 0x60);
+    } else {
+      switch (event.key.scancode) {
+      case SDL_SCANCODE_SEMICOLON: ch = ';'; break;
+      case SDL_SCANCODE_EQUALS: ch = '='; break;
+      case SDL_SCANCODE_GRAVE: ch = '`'; break;
+      case SDL_SCANCODE_LEFTBRACKET: ch = '['; break;
+      case SDL_SCANCODE_BACKSLASH: ch = '\\'; break;
+      case SDL_SCANCODE_RIGHTBRACKET: ch = ']'; break;
+      case SDL_SCANCODE_APOSTROPHE: ch = '\''; break;
+      case SDL_SCANCODE_MINUS: ch = '-'; break;
+      case SDL_SCANCODE_COMMA: ch = ','; break;
+      case SDL_SCANCODE_PERIOD: ch = '.'; break;
+      case SDL_SCANCODE_SLASH: ch = '/'; break;
+      default: break;
+      }
+    }
     if (vk > 0 && vk < 256) {
-      const bool was_down = ((key_status[vk] & 0x80) != 0);
-      if (vm) {
+      // Decide once, on the initial (non-repeat) key-down, whether this
+      // physical key's whole press-hold-release lifecycle routes through
+      // EMU's romaji-to-kana engine, and stick with that choice for its
+      // matching repeat/key-up events. Re-reading config.romaji_to_kana on
+      // every event would let a mid-hold menu toggle split one physical
+      // press across both paths (e.g. key-down raw, key-up translated, or
+      // vice versa), desyncing key_status or leaking an untranslated key.
+      if (down && !event.key.repeat) {
+        key_romaji_active[vk] = (vm && emu && config.romaji_to_kana);
+      }
+      if (key_romaji_active[vk]) {
+        // The VM polls this OSD's key_status buffer directly every frame
+        // (see PC88::event_frame's memcpy of emu->get_key_buffer()), so a
+        // physical key must never touch key_status here: otherwise it would
+        // reach the VM as a raw keystroke regardless of what EMU::key_down
+        // decides. Everything instead flows through EMU's auto-key/romaji
+        // engine, which drives the VM itself via key_down_native/up_native.
         if (down) {
-          key_status[vk] = 0x80;
-          if (!block_vm_keydown && (!was_down || event.key.repeat != 0)) {
-            vm->key_down(vk, event.key.repeat != 0);
+          if (!block_vm_keydown) {
+            emu->key_down(vk, false, event.key.repeat != 0);
+            // Only the initial press feeds the romaji engine: auto-key
+            // playback is much slower than OS key-repeat, so translating
+            // every repeat tick would queue a backlog that keeps "typing"
+            // long after the key is released.
+            if (!event.key.repeat && ch != 0) {
+              emu->key_char((char)ch);
+            }
           }
         } else {
-          if (key_status[vk] == 0) {
-            return;
-          }
-          if ((key_status[vk] &= 0x7f) != 0) {
-            return;
-          }
-          vm->key_up(vk);
+          // Key-up is never blocked (unlike key-down), so EMU's
+          // shift_pressed tracking can't get stuck if a menu/dialog was
+          // open at the moment the key was released.
+          emu->key_up(vk, false);
         }
       } else {
-        if (down) {
-          key_status[vk] = 0x80;
+        const bool was_down = ((key_status[vk] & 0x80) != 0);
+        if (vk == 0x10 && emu) {
+          // Keep EMU's shift_pressed in sync with the physical Shift key
+          // even when Shift itself isn't routed through the romaji path,
+          // so a later nav-key auto-key sequence -- typed while
+          // config.romaji_to_kana may since have changed -- still sees
+          // the correct modifier instead of a stale "not held" state.
+          if (down) {
+            emu->key_down(vk, false, event.key.repeat != 0);
+          } else {
+            emu->key_up(vk, false);
+          }
+        }
+        if (vm) {
+          if (down) {
+            key_status[vk] = 0x80;
+            if (!block_vm_keydown && (!was_down || event.key.repeat != 0)) {
+              vm->key_down(vk, event.key.repeat != 0);
+            }
+          } else {
+            if (key_status[vk] == 0) {
+              return;
+            }
+            if ((key_status[vk] &= 0x7f) != 0) {
+              return;
+            }
+            vm->key_up(vk);
+          }
         } else {
-          key_status[vk] &= 0x7f;
+          if (down) {
+            key_status[vk] = 0x80;
+          } else {
+            key_status[vk] &= 0x7f;
+          }
         }
       }
     }
@@ -1128,6 +1216,23 @@ void OSD::consume_mouse_delta(int32_t &dx, int32_t &dy) {
 }
 
 void OSD::clear_all_pressed_keys() {
+  if (emu) {
+    // Release any key EMU still thinks is held via the romaji path (e.g.
+    // Shift, tracked internally as EMU::shift_pressed) before the latch
+    // that routed it there is wiped out below.
+    for (int code = 1; code < 256; code++) {
+      if (key_romaji_active[code]) {
+        emu->key_up(code, false);
+      }
+    }
+    if (config.romaji_to_kana) {
+      // Flush any in-progress romaji composition and release the kana
+      // lock, so it doesn't bleed into the next input after focus loss or
+      // opening a menu mid-composition.
+      emu->key_char(0);
+    }
+  }
+  memset(key_romaji_active, 0, sizeof(key_romaji_active));
   if (!vm) {
     memset(key_status, 0, sizeof(key_status));
     return;
@@ -2288,7 +2393,19 @@ bool OSD::draw_menu_contents() {
       if (ImGui::MenuItem("CPU x16", NULL, config.cpu_power == 16.0f)) { config.cpu_power = 16.0f; if(vm) vm->update_config(); }
       if (ImGui::MenuItem(Lang::FullSpeed, NULL, config.full_speed)) { config.full_speed = !config.full_speed; }
       ImGui::Separator();
-      if (ImGui::MenuItem(Lang::RomajiToKana, NULL, config.romaji_to_kana)) { config.romaji_to_kana = !config.romaji_to_kana; }
+      if (ImGui::MenuItem(Lang::RomajiToKana, NULL, config.romaji_to_kana)) {
+        // EMU::key_char only runs its start/end (1/0) handling while
+        // config.romaji_to_kana reads true, so the flag must still be true
+        // when we ask it to release the kana lock and flush pending state
+        // on the way OFF; flip it to false only after that runs.
+        if (config.romaji_to_kana) {
+          if (emu) emu->key_char(0);
+          config.romaji_to_kana = false;
+        } else {
+          config.romaji_to_kana = true;
+          if (emu) emu->key_char(1);
+        }
+      }
       ImGui::Separator();
       if (ImGui::MenuItem(Lang::StateDialogMenu)) {
         open_state_dialog();

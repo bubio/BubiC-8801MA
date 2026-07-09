@@ -623,27 +623,31 @@ bool EMU::is_vm_locked() { return osd->is_vm_locked(); }
 
 void EMU::key_down(int code, bool extended, bool repeat) {
 #ifdef USE_AUTO_KEY
+  // Callers only reach this once they've already decided (and latched, e.g.
+  // OSD::key_romaji_active) that this key goes through the romaji-to-kana
+  // engine, so this must not re-derive that decision from the live
+  // config.romaji_to_kana -- doing so let a mid-hold toggle of the option
+  // desync this call from the caller's earlier choice for the same key.
   if (code == 0x10) {
     shift_pressed = true;
   }
-  if (config.romaji_to_kana) {
-    if (!repeat) {
-      // Page Up, Page Down, End, Home, Left, Up, Right, Down, Ins, Del, Help,
-      // and F1-F12
-      if ((code >= 0x21 && code <= 0x2f) || (code >= 0x70 && code <= 0x7b)) {
-        if (shift_pressed) {
-          auto_key_buffer->write(code | 0x100);
-        } else {
-          auto_key_buffer->write(code);
-        }
-        if (!is_auto_key_running()) {
-          start_auto_key();
-        }
+  if (!repeat) {
+    // Page Up, Page Down, End, Home, Left, Up, Right, Down, Ins, Del, Help,
+    // and F1-F12
+    if ((code >= 0x21 && code <= 0x2f) || (code >= 0x70 && code <= 0x7b)) {
+      if (shift_pressed) {
+        auto_key_buffer->write(code | 0x100);
+      } else {
+        auto_key_buffer->write(code);
+      }
+      if (!is_auto_key_running()) {
+        start_auto_key();
       }
     }
-  } else if (!is_auto_key_running())
+  }
+#else
+  osd->key_down(code, extended, repeat);
 #endif
-    osd->key_down(code, extended, repeat);
 }
 
 void EMU::key_up(int code, bool extended) {
@@ -651,18 +655,14 @@ void EMU::key_up(int code, bool extended) {
   if (code == 0x10) {
     shift_pressed = false;
   }
-  if (config.romaji_to_kana) {
-    // do nothing
-  } else if (!is_auto_key_running())
+#else
+  osd->key_up(code, extended);
 #endif
-    osd->key_up(code, extended);
 }
 
 void EMU::key_char(char code) {
 #ifdef USE_AUTO_KEY
-  if (config.romaji_to_kana) {
-    set_auto_key_char(code);
-  }
+  set_auto_key_char(code);
 #endif
 }
 
@@ -1335,9 +1335,9 @@ int EMU::get_auto_key_code(int code) {
 }
 
 void EMU::set_auto_key_code(int code) {
-  if (code == 0xf2 || (code = get_auto_key_code(code)) != 0) {
+  if (code == 0x15 || (code = get_auto_key_code(code)) != 0) {
     if (code == 0x08 || code == 0x09 || code == 0x0d || code == 0x1b ||
-        code == 0x20 || code == 0xf2) {
+        code == 0x20 || code == 0x15) {
       auto_key_buffer->write(code);
 #ifdef USE_AUTO_KEY_NUMPAD
     } else if (code >= 0x30 && code <= 0x39) {
@@ -1349,9 +1349,9 @@ void EMU::set_auto_key_code(int code) {
       auto_key_buffer->write(code & 0x1ff);
     } else {
       // ank other than alphabet and kana
-      auto_key_buffer->write(0xf2); // kana unlock
+      auto_key_buffer->write(0x15); // kana unlock
       auto_key_buffer->write(code & 0x1ff);
-      auto_key_buffer->write(0xf2); // kana lock
+      auto_key_buffer->write(0x15); // kana lock
     }
     if (!is_auto_key_running()) {
       start_auto_key();
@@ -1381,7 +1381,7 @@ void EMU::set_auto_key_list(char *buf, int size) {
       // kana lock
       bool kana = ((code & 0x200) != 0);
       if (prev_kana != kana) {
-        auto_key_buffer->write(0xf2);
+        auto_key_buffer->write(0x15);
       }
       prev_kana = kana;
 #if defined(USE_AUTO_KEY_CAPS_LOCK)
@@ -1416,7 +1416,7 @@ void EMU::set_auto_key_list(char *buf, int size) {
   }
   // release kana lock
   if (prev_kana) {
-    auto_key_buffer->write(0xf2);
+    auto_key_buffer->write(0x15);
   }
 #if defined(USE_AUTO_KEY_CAPS_LOCK)
   // release caps lock
@@ -1443,14 +1443,22 @@ void EMU::set_auto_key_char(char code) {
 #ifdef USE_KEY_LOCKED
     if (!get_kana_locked())
 #endif
-      set_auto_key_code(0xf2);
+      set_auto_key_code(0x15);
     memset(codes, 0, sizeof(codes));
   } else if (code == 0) {
     // end
     if (codes[3] == 'n') {
       set_auto_key_code(0xdd); // 'ﾝ'
     }
-    set_auto_key_code(0xf2);
+    // 0x15 is a hardware toggle, not a "set off" key, so only send it when
+    // kana lock is actually on. Otherwise a second "end" call (e.g. opening
+    // a menu right before flipping the option off, which flushes via
+    // clear_all_pressed_keys() and then again via the menu handler itself)
+    // would toggle it back on instead of leaving it off.
+#ifdef USE_KEY_LOCKED
+    if (get_kana_locked())
+#endif
+      set_auto_key_code(0x15);
     memset(codes, 0, sizeof(codes));
   } else if (code == 0x08 || code == 0x09 || code == 0x0d || code == 0x1b ||
              code == 0x20) {

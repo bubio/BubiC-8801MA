@@ -53,6 +53,11 @@ private:
   void initialize_input();
   void release_input();
   uint8_t key_status[256];
+  // Whether each vk's currently-held key press is being routed through
+  // EMU's romaji-to-kana engine, decided once on the initial key-down and
+  // reused for its repeat/key-up events so a mid-hold toggle of
+  // config.romaji_to_kana can't split one physical press across both paths.
+  bool key_romaji_active[256];
   uint32_t joy_status[4];
   int32_t mouse_status[8];
   double mouse_remainder_x;

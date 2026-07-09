@@ -11,7 +11,7 @@
       "hidden": true,
       "binaryDir": "${sourceDir}/build_x64",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "${sourceDir}/third_party/SDL3-3.4.2/cmake"
+        "CMAKE_PREFIX_PATH": "${sourceDir}/third_party/SDL3-3.4.12/cmake"
       }
     },
     {
