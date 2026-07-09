@@ -1883,6 +1883,13 @@ void *debugger_thread(void *lpx)
     }
     cpu_debugger->now_debugging = cpu_debugger->now_going =
         cpu_debugger->now_suspended = cpu_debugger->now_waiting = false;
+    // Reset EMU-level state here too, not just the per-CPU DEBUGGER flags:
+    // this function returns/exits on every exit path, including a
+    // self-initiated "Q" quit that nobody else's close_debugger() call
+    // observes. Without this, EMU::now_debugging stays stuck true and
+    // EMU::open_debugger()'s guard silently refuses to reopen a session
+    // for the same CPU.
+    p->emu->now_debugging = false;
   } catch (...) {
   }
 

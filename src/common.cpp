@@ -1519,15 +1519,21 @@ size_t DLL_PREFIX sjis_to_utf8(const char* sjis_str, char* utf8_buffer, size_t b
     }
 
 #ifdef _WIN32
-    // Convert Shift_JIS to UTF-16 (wchar_t)
-    // CP_ACP uses the system default ANSI code page, which is Shift_JIS for Japanese Windows.
-    int wchars_needed = MultiByteToWideChar(CP_ACP, 0, sjis_str, -1, NULL, 0);
+    // Convert Shift_JIS to UTF-16 (wchar_t). This function's whole contract
+    // is "the input is Shift_JIS" -- that's true regardless of the host
+    // machine's locale, since it's this project's internal string encoding
+    // (see src/common.h), not something derived from the OS. Use the
+    // literal Shift_JIS codepage (932) rather than CP_ACP (the system's
+    // default ANSI codepage): CP_ACP only happens to equal 932 on a
+    // Japanese-locale Windows install, and silently mis-decodes SJIS text
+    // (mojibake) on any other locale.
+    int wchars_needed = MultiByteToWideChar(932, 0, sjis_str, -1, NULL, 0);
     if (wchars_needed <= 0) {
         utf8_buffer[0] = '\0';
         return 0;
     }
     std::wstring wstr(wchars_needed, L'\0');
-    MultiByteToWideChar(CP_ACP, 0, sjis_str, -1, &wstr[0], wchars_needed);
+    MultiByteToWideChar(932, 0, sjis_str, -1, &wstr[0], wchars_needed);
 
     // Convert UTF-16 (wchar_t) to UTF-8
     int utf8_bytes_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);

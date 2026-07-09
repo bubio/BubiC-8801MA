@@ -140,6 +140,9 @@ namespace Lang {
   static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音", "节奏音静音", "리듬 음소거", "Silenciar ritmo", "Couper le son du rythme"};
   static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ...", "导出内存...", "메모리 덤프...", "Volcar memoria...", "Vider la mémoire..."};
   static constexpr Msg Debug = {"Debug", "デバッグ", "调试", "디버그", "Depuración", "Débogage"};
+  static constexpr Msg DebugMainCpu = {"Debug Main CPU", "メインCPUをデバッグ", "调试主CPU", "메인 CPU 디버그", "Depurar CPU principal", "Déboguer le CPU principal"};
+  static constexpr Msg DebugSubCpu = {"Debug Sub CPU", "サブCPUをデバッグ", "调试子CPU", "서브 CPU 디버그", "Depurar CPU secundaria", "Déboguer le CPU secondaire"};
+  static constexpr Msg CloseDebugger = {"Close Debugger", "デバッガを閉じる", "关闭调试器", "디버거 닫기", "Cerrar depurador", "Fermer le débogueur"};
   static constexpr Msg LanguageLabel = {"Language", "言語", "语言", "언어", "Idioma", "Langue"};
   static constexpr Msg LangEn = {"English", "英語", "英语", "영어", "Inglés", "Anglais"};
   static constexpr Msg LangJp = {"Japanese", "日本語", "中文(日语)", "일본어", "Japonés", "Japonais"};
@@ -383,8 +386,16 @@ static int get_disk_names(const char* path, int drv, EMU* emu) {
 }
 
 OSD::OSD() {
+  main_thread_id = std::this_thread::get_id();
   lock_count = 0;
   terminated = false;
+  debugger_window_state.store(DebuggerWindowState::Closed);
+  debugger_window = NULL;
+  debugger_renderer = NULL;
+  debugger_imgui_ctx = NULL;
+  debugger_console_escape_down.store(false);
+  debugger_console_cur_attr = OSD_CONSOLE_RED | OSD_CONSOLE_GREEN | OSD_CONSOLE_BLUE;
+  debugger_console_scroll_to_bottom = false;
   vm = NULL;
   emu = NULL;
   window = NULL;
@@ -590,6 +601,7 @@ void OSD::initialize(int rate, int samples) {
 
 void OSD::release() {
   disable_mouse();
+  destroy_debugger_window_now();
   release_state_thumbnails();
   release_mouse_icon();
   release_sound();
@@ -839,6 +851,43 @@ void OSD::update_input() {
   SDL_Event event;
   ImGuiIO &io = ImGui::GetIO();
   while (SDL_PollEvent(&event)) {
+    if (event.type == SDL_EVENT_QUIT) {
+      terminated = true;
+      continue;
+    }
+
+    // The debugger console lives in its own SDL_Window/ImGui context (see
+    // debugger_window / draw_debugger_window()). Route its events there
+    // instead of into the main context, and never let them reach the
+    // emulated PC-88 keyboard/mouse handling below. SDL_GetWindowFromEvent()
+    // returns NULL for event types with no associated window (and for
+    // events belonging to the main window), so this correctly covers every
+    // event type -- including ones a hand-picked case list would miss,
+    // like SDL_EVENT_DROP_FILE (dropping a disk image on the debugger
+    // window must not be treated as a drop on the main window).
+    if (debugger_window && SDL_GetWindowFromEvent(&event) == debugger_window) {
+      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+        if (emu)
+          emu->close_debugger();
+      } else {
+        if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+          // A held Escape's KEY_UP may never reach this window once it
+          // loses focus; don't leave the debugger's Go-interrupt check
+          // stuck seeing Escape as permanently held.
+          debugger_console_escape_down.store(false);
+        }
+        ImGuiContext *saved_ctx = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(debugger_imgui_ctx);
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        ImGui::SetCurrentContext(saved_ctx);
+        if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
+          if (event.key.key == SDLK_ESCAPE)
+            debugger_console_escape_down.store(event.type == SDL_EVENT_KEY_DOWN);
+        }
+      }
+      continue;
+    }
+
     // Record actual pointer input before ImGui gets a chance to consume it.
     // Merely hovering a UI item must not keep the fullscreen UI visible.
     const bool pointer_moved =
@@ -853,9 +902,6 @@ void OSD::update_input() {
       last_ui_interaction_tick = SDL_GetTicks();
     }
     ImGui_ImplSDL3_ProcessEvent(&event);
-    if (event.type == SDL_EVENT_QUIT) {
-      terminated = true;
-    }
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
       disable_mouse();
       clear_all_pressed_keys();
@@ -1351,6 +1397,21 @@ void OSD::update_window_scale() {
 }
 
 int OSD::draw_screen() {
+  // SDL_Renderer and the ImGui context are single-threaded. The debugger
+  // thread (EMU::open_debugger) calls EMU::draw_screen() every REPL
+  // iteration to mirror the original console-based debugger's behavior, but
+  // the main loop (src/sdl3/main.cpp) already redraws every frame on its
+  // own regardless of debugger state, so it's safe -- and required for
+  // thread-safety -- to no-op here when called off the main thread.
+  if (std::this_thread::get_id() != main_thread_id)
+    return 0;
+
+  // Create/destroy the debugger console's own SDL_Window as requested by
+  // the debugger thread (open_console()/close_console() only flag the
+  // request; actually touching SDL/ImGui must happen here, on the main
+  // thread).
+  process_debugger_window_requests();
+
   if (!renderer || !screen_texture || !vm_screen_buffer)
     return 0;
 
@@ -1562,6 +1623,11 @@ int OSD::draw_screen() {
     if (show_about_dialog) {
       next_reason |= UI_REASON_MENU_TREE;
     }
+    // The debugger console intentionally never contributes to next_reason/
+    // ui_interacting: unlike other dialogs, it must not pause VM execution,
+    // or the CPU being debugged would never reach a breakpoint. It also
+    // lives in its own SDL_Window now, so its keystrokes never reach this
+    // window's event handling in the first place (see update_input()).
     const bool next_ui_interacting = (next_reason != UI_REASON_NONE);
     if (!prev_ui_interacting && next_ui_interacting) {
       clear_all_pressed_keys();
@@ -1584,7 +1650,9 @@ int OSD::draw_screen() {
 
   SDL_RenderPresent(renderer);
 
-
+  if (debugger_window) {
+    draw_debugger_window();
+  }
 
   return 0;
 
@@ -2058,6 +2126,197 @@ void OSD::draw_about_dialog() {
   if (!open) close_about_dialog();
 }
 
+// Maps the OSD_CONSOLE_RED/GREEN/BLUE/INTENSITY bit attribute (set via
+// set_console_text_attribute(), the same values the original Win32 console
+// debugger used) to an ImGui text color.
+static ImVec4 debugger_console_attr_color(unsigned short attr) {
+  const float base = (attr & OSD_CONSOLE_INTENSITY) ? 1.0f : 0.6f;
+  float r = (attr & OSD_CONSOLE_RED) ? base : 0.0f;
+  float g = (attr & OSD_CONSOLE_GREEN) ? base : 0.0f;
+  float b = (attr & OSD_CONSOLE_BLUE) ? base : 0.0f;
+  if (!(attr & (OSD_CONSOLE_RED | OSD_CONSOLE_GREEN | OSD_CONSOLE_BLUE))) {
+    // No color channel set (e.g. attr == 0): fall back to neutral gray
+    // instead of invisible black-on-black text.
+    r = g = b = (attr & OSD_CONSOLE_INTENSITY) ? 0.85f : 0.5f;
+  }
+  return ImVec4(r, g, b, 1.0f);
+}
+
+// Tears down the debugger console's SDL_Window/SDL_Renderer/ImGui context,
+// if any currently exist. Idempotent (safe to call when nothing is open).
+// Main thread only.
+void OSD::destroy_debugger_window_now() {
+  if (debugger_window)
+    SDL_StopTextInput(debugger_window);
+  if (debugger_imgui_ctx) {
+    ImGuiContext *saved_ctx = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(debugger_imgui_ctx);
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::SetCurrentContext(saved_ctx);
+    ImGui::DestroyContext(debugger_imgui_ctx);
+    debugger_imgui_ctx = nullptr;
+  }
+  if (debugger_renderer) {
+    SDL_DestroyRenderer(debugger_renderer);
+    debugger_renderer = nullptr;
+  }
+  if (debugger_window) {
+    SDL_DestroyWindow(debugger_window);
+    debugger_window = nullptr;
+  }
+  debugger_console_escape_down.store(false);
+}
+
+// Creates/destroys the debugger console's own SDL_Window, SDL_Renderer and
+// ImGui context, as requested by open_console()/close_console() (which run
+// on the debugger's background thread and only set debugger_window_state).
+// Must only be called from the main thread -- called once per frame from
+// draw_screen().
+void OSD::process_debugger_window_requests() {
+  DebuggerWindowState state = debugger_window_state.load();
+
+  if (state == DebuggerWindowState::PendingOpen) {
+    // EMU::open_debugger() switching CPUs closes the previous debugger
+    // session and starts a new one synchronously, with no frame boundary
+    // in between (see src/debugger.cpp) -- so close_console()'s PendingClose
+    // can be silently superseded by this PendingOpen before this function
+    // ever observes it. Always tear down any still-live window first so
+    // it's never leaked as an orphaned, un-rendered, un-closable window.
+    destroy_debugger_window_now();
+
+    std::string title;
+    {
+      std::lock_guard<std::mutex> lock(debugger_window_request_mutex);
+      title = debugger_window_pending_title;
+    }
+
+    debugger_window = SDL_CreateWindow(title.c_str(), 720, 480,
+                                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    if (debugger_window) {
+      debugger_renderer = SDL_CreateRenderer(debugger_window, NULL);
+    }
+    if (debugger_window && debugger_renderer) {
+      ImGuiContext *saved_ctx = ImGui::GetCurrentContext();
+      debugger_imgui_ctx = ImGui::CreateContext();
+      ImGui::SetCurrentContext(debugger_imgui_ctx);
+      ImGui::GetIO().IniFilename = nullptr; // ephemeral window, no layout to persist
+      // Give the debugger console the same CJK-capable font the main
+      // window uses -- write_console() can display non-ASCII text (file
+      // paths, symbol names) via sjis_to_utf8(), and a bare CreateContext()
+      // would otherwise leave this context with only ImGui's built-in
+      // ASCII-only default font.
+      load_font();
+      bool sdl3_ok = ImGui_ImplSDL3_InitForSDLRenderer(debugger_window, debugger_renderer);
+      bool renderer_ok = sdl3_ok && ImGui_ImplSDLRenderer3_Init(debugger_renderer);
+      ImGui::SetCurrentContext(saved_ctx);
+
+      if (sdl3_ok && renderer_ok) {
+        SDL_StartTextInput(debugger_window);
+        debugger_window_state.store(DebuggerWindowState::Open);
+      } else {
+        OSD_LOG("Failed to initialize ImGui backend for debugger window (sdl3=%d renderer=%d)",
+                sdl3_ok, renderer_ok);
+        destroy_debugger_window_now();
+        debugger_window_state.store(DebuggerWindowState::Closed);
+      }
+    } else {
+      destroy_debugger_window_now();
+      debugger_window_state.store(DebuggerWindowState::Closed);
+    }
+  } else if (state == DebuggerWindowState::PendingClose) {
+    destroy_debugger_window_now();
+    debugger_window_state.store(DebuggerWindowState::Closed);
+  }
+}
+
+// Renders the Debug Main CPU / Debug Sub CPU console into its own OS
+// window (debugger_window/debugger_renderer/debugger_imgui_ctx). This is a
+// dumb-terminal-style widget: it does not maintain its own editable input
+// buffer. Instead it forwards raw keystrokes to debugger_console_input_queue
+// (drained by EMU::open_debugger's background thread via
+// OSD::read_console_input), and everything visible -- including the
+// in-progress command line, backspace edits, and history recall -- is
+// rendered from what that thread echoes back via write_console/
+// write_console_char, exactly mirroring the original console's behavior.
+// Events are only ever routed here (see update_input()) while
+// debugger_window has OS focus, so no manual focus check is needed.
+void OSD::draw_debugger_window() {
+  ImGuiContext *saved_ctx = ImGui::GetCurrentContext();
+  ImGui::SetCurrentContext(debugger_imgui_ctx);
+
+  ImGui_ImplSDLRenderer3_NewFrame();
+  ImGui_ImplSDL3_NewFrame();
+  ImGui::NewFrame();
+
+  ImGuiViewport *viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(viewport->Pos);
+  ImGui::SetNextWindowSize(viewport->Size);
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+                           ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+  ImGui::Begin("##debugger_root", nullptr, flags);
+
+  const float input_hint_h = ImGui::GetFrameHeightWithSpacing();
+  ImGui::BeginChild("##debugger_console_log", ImVec2(0, -input_hint_h), true,
+                    ImGuiWindowFlags_HorizontalScrollbar);
+  {
+    std::lock_guard<std::mutex> lock(debugger_console_mutex);
+    ImGuiListClipper clipper;
+    clipper.Begin((int)debugger_console_lines.size());
+    while (clipper.Step()) {
+      for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+        const DebuggerConsoleLine &line = debugger_console_lines[i];
+        ImGui::PushStyleColor(ImGuiCol_Text, debugger_console_attr_color(line.attr));
+        ImGui::TextUnformatted(line.text.c_str());
+        ImGui::PopStyleColor();
+      }
+    }
+    if (!debugger_console_pending_line.empty()) {
+      ImGui::PushStyleColor(ImGuiCol_Text, debugger_console_attr_color(debugger_console_cur_attr));
+      ImGui::TextUnformatted(debugger_console_pending_line.c_str());
+      ImGui::PopStyleColor();
+    }
+  }
+  if (debugger_console_scroll_to_bottom) {
+    ImGui::SetScrollHereY(1.0f);
+    debugger_console_scroll_to_bottom = false;
+  }
+  ImGui::EndChild();
+
+  ImGuiIO &io = ImGui::GetIO();
+  for (int i = 0; i < io.InputQueueCharacters.Size; i++) {
+    ImWchar c = io.InputQueueCharacters[i];
+    if (c >= 0x20 && c < 0x7F)
+      push_debugger_console_input((char)c);
+  }
+  if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))
+    push_debugger_console_input('\r');
+  if (ImGui::IsKeyPressed(ImGuiKey_Backspace))
+    push_debugger_console_input(0x08);
+  if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+    push_debugger_console_input(0x1B);
+    push_debugger_console_input('[');
+    push_debugger_console_input('A');
+  }
+  if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+    push_debugger_console_input(0x1B);
+    push_debugger_console_input('[');
+    push_debugger_console_input('B');
+  }
+  ImGui::TextDisabled("(type here -- commands go to the debugger thread)");
+
+  ImGui::End();
+
+  ImGui::Render();
+  SDL_SetRenderDrawColor(debugger_renderer, 0, 0, 0, 255);
+  SDL_RenderClear(debugger_renderer);
+  ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), debugger_renderer);
+  SDL_RenderPresent(debugger_renderer);
+
+  ImGui::SetCurrentContext(saved_ctx);
+}
+
 void OSD::add_extra_frames(int frames) {
   if (frames <= 0) {
     return;
@@ -2086,14 +2345,123 @@ void OSD::open_message_box(const _TCHAR *text) {
 
 void OSD::initialize_console() {}
 void OSD::release_console() {}
-void OSD::open_console(int width, int height, const char *title) {}
-void OSD::close_console() {}
-void OSD::write_console(const char *buffer, unsigned int length) {}
-void OSD::write_console_char(const char *buffer, unsigned int length) {}
-void OSD::set_console_text_attribute(unsigned short attr) {}
-unsigned int OSD::get_console_code_page() { return 65001; } // UTF-8 or default
-int OSD::read_console_input(char *buffer, unsigned int length) { return 0; }
-bool OSD::is_console_closed() { return true; }
+
+// Called from the debugger's background thread. SDL window/renderer and
+// ImGui context creation must happen on the main thread, so this only
+// records the request; process_debugger_window_requests() (called from
+// draw_screen(), main thread) does the real work on the next frame. Any
+// text written via write_console() in the meantime is simply buffered and
+// shows up once the window exists.
+void OSD::open_console(int width, int height, const char *title) {
+  {
+    std::lock_guard<std::mutex> lock(debugger_console_mutex);
+    debugger_console_lines.clear();
+    debugger_console_pending_line.clear();
+    debugger_console_input_queue.clear();
+    debugger_console_cur_attr =
+        OSD_CONSOLE_RED | OSD_CONSOLE_GREEN | OSD_CONSOLE_BLUE;
+  }
+  {
+    std::lock_guard<std::mutex> lock(debugger_window_request_mutex);
+    debugger_window_pending_title = title ? title : "Debugger";
+  }
+  debugger_console_scroll_to_bottom = true;
+  debugger_window_state.store(DebuggerWindowState::PendingOpen);
+}
+
+// Same threading rule as open_console(): just request teardown, don't
+// touch SDL/ImGui here. The debugger thread calls this right before it
+// exits (see src/debugger.cpp), so it must not block waiting for the main
+// thread -- the debugger thread needs to finish and terminate on its own
+// so that EMU::close_debugger()'s join (possibly running on the main
+// thread) can return; the actual window gets torn down on a later frame.
+void OSD::close_console() {
+  if (debugger_window_state.load() == DebuggerWindowState::Closed)
+    return;
+  debugger_window_state.store(DebuggerWindowState::PendingClose);
+}
+
+void OSD::close_debugger_console() { close_console(); }
+
+// Called from the debugger's background thread (EMU::open_debugger). The
+// text passed in is SJIS/CP932 (this project's _TCHAR is plain char, per
+// src/common.h), so convert to UTF-8 before it reaches ImGui. A literal
+// backspace (0x08) edits debugger_console_pending_line directly, matching
+// how a real console erases the previously echoed character.
+void OSD::write_console(const char *buffer, unsigned int length) {
+  if (!buffer || length == 0)
+    return;
+  char sjis_buf[8192];
+  unsigned int copy_len = (length < sizeof(sjis_buf) - 1) ? length : sizeof(sjis_buf) - 1;
+  memcpy(sjis_buf, buffer, copy_len);
+  sjis_buf[copy_len] = '\0';
+  char utf8_buf[16384];
+  sjis_to_utf8(sjis_buf, utf8_buf, sizeof(utf8_buf));
+
+  std::lock_guard<std::mutex> lock(debugger_console_mutex);
+  for (const char *p = utf8_buf; *p; p++) {
+    if (*p == '\n') {
+      debugger_console_lines.push_back({debugger_console_pending_line, debugger_console_cur_attr});
+      debugger_console_pending_line.clear();
+      const size_t max_lines = 2000;
+      if (debugger_console_lines.size() > max_lines) {
+        debugger_console_lines.erase(
+            debugger_console_lines.begin(),
+            debugger_console_lines.begin() + (debugger_console_lines.size() - max_lines));
+      }
+    } else if (*p == '\r') {
+      // line breaks are driven by '\n'; ignore the paired '\r'
+    } else if (*p == '\x08') {
+      if (!debugger_console_pending_line.empty())
+        debugger_console_pending_line.pop_back();
+    } else {
+      debugger_console_pending_line.push_back(*p);
+    }
+  }
+  debugger_console_scroll_to_bottom = true;
+}
+
+void OSD::write_console_char(const char *buffer, unsigned int length) {
+  write_console(buffer, length);
+}
+
+void OSD::set_console_text_attribute(unsigned short attr) {
+  std::lock_guard<std::mutex> lock(debugger_console_mutex);
+  debugger_console_cur_attr = attr;
+}
+
+unsigned int OSD::get_console_code_page() { return 932; } // Shift-JIS, matches _TCHAR text
+
+int OSD::read_console_input(char *buffer, unsigned int length) {
+  if (!buffer || length == 0)
+    return 0;
+  std::lock_guard<std::mutex> lock(debugger_console_mutex);
+  unsigned int count = 0;
+  while (count < length && !debugger_console_input_queue.empty()) {
+    buffer[count++] = debugger_console_input_queue.front();
+    debugger_console_input_queue.pop_front();
+  }
+  return (int)count;
+}
+
+bool OSD::is_console_closed() {
+  return debugger_window_state.load() == DebuggerWindowState::Closed;
+}
+
+void OSD::push_debugger_console_input(char c) {
+  std::lock_guard<std::mutex> lock(debugger_console_mutex);
+  if (debugger_console_input_queue.size() < 4096)
+    debugger_console_input_queue.push_back(c);
+}
+
+// Called on the main thread, repeatedly, while a CPU is suspended at a
+// breakpoint (see the comment on the declaration in osd.h). Pumping events
+// and redrawing here is what lets the debugger console -- and the rest of
+// the UI -- keep working while the emulated CPU itself is halted.
+void OSD::process_waiting_in_debugger() {
+  update_input();
+  draw_screen();
+}
 
 void OSD::initialize_imgui() {
   OSD_LOG("initialize_imgui() starting...");
@@ -2746,6 +3114,32 @@ bool OSD::draw_menu_contents() {
           }, this, window, home.c_str(), false);
         }
       }
+#ifdef USE_DEBUGGER
+      ImGui::Separator();
+      {
+        bool sub_cpu_available = emu && emu->is_debugger_enabled(1);
+        bool debugging_main = emu && emu->now_debugging &&
+                              emu->debugger_thread_param.cpu_index == 0;
+        bool debugging_sub = emu && emu->now_debugging &&
+                             emu->debugger_thread_param.cpu_index == 1;
+        if (ImGui::MenuItem(Lang::DebugMainCpu, NULL, debugging_main)) {
+          if (emu)
+            emu->open_debugger(0);
+        }
+        ImGui::BeginDisabled(!sub_cpu_available);
+        if (ImGui::MenuItem(Lang::DebugSubCpu, NULL, debugging_sub)) {
+          if (emu)
+            emu->open_debugger(1);
+        }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!(emu && emu->now_debugging));
+        if (ImGui::MenuItem(Lang::CloseDebugger)) {
+          if (emu)
+            emu->close_debugger();
+        }
+        ImGui::EndDisabled();
+      }
+#endif
       ImGui::Separator();
       if (ImGui::MenuItem(Lang::MuteFM, NULL, config.sound_mute_fm)) {
         config.sound_mute_fm = !config.sound_mute_fm;

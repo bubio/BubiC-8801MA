@@ -10,6 +10,12 @@
 #include <SDL3/SDL.h>
 #include <string>
 #include <mutex>
+#include <thread>
+#include <deque>
+#include <vector>
+#include <atomic>
+
+struct ImGuiContext;
 
 // SDL3 specific definitions
 #define OSD_CONSOLE_BLUE 1
@@ -44,6 +50,7 @@ class OSD {
 private:
   int lock_count;
   bool terminated;
+  std::thread::id main_thread_id;
 
   // Console
   void initialize_console();
@@ -156,6 +163,48 @@ private:
   void open_about_dialog();
   void close_about_dialog();
   void draw_about_dialog();
+
+  // Debugger console (Debug Main CPU / Debug Sub CPU). This is rendered in
+  // its own real OS window (own SDL_Window/SDL_Renderer/ImGui context),
+  // separate from the main emulator window, so it can be moved/alt-tabbed
+  // independently.
+  //
+  // write_console()/write_console_char()/open_console()/close_console() are
+  // called from the debugger's own background thread (see
+  // EMU::open_debugger, src/debugger.cpp). SDL/ImGui window and context
+  // creation is not safe to do off the main thread, so those calls only
+  // record a request (debugger_window_state) and return immediately;
+  // process_debugger_window_requests(), called once per frame from the main
+  // thread, does the actual SDL_CreateWindow/DestroyWindow and ImGui
+  // CreateContext/DestroyContext work. All other shared state is guarded by
+  // debugger_console_mutex.
+  struct DebuggerConsoleLine {
+    std::string text;
+    unsigned short attr;
+  };
+  enum class DebuggerWindowState { Closed, PendingOpen, Open, PendingClose };
+  std::atomic<DebuggerWindowState> debugger_window_state;
+  std::mutex debugger_window_request_mutex;
+  std::string debugger_window_pending_title;
+  SDL_Window *debugger_window;
+  SDL_Renderer *debugger_renderer;
+  ImGuiContext *debugger_imgui_ctx;
+  std::atomic<bool> debugger_console_escape_down;
+
+  std::mutex debugger_console_mutex;
+  std::vector<DebuggerConsoleLine> debugger_console_lines;
+  std::string debugger_console_pending_line;
+  unsigned short debugger_console_cur_attr;
+  std::deque<char> debugger_console_input_queue;
+  // Touched from both the debugger background thread (write_console(),
+  // open_console()) and the main thread (draw_debugger_window()) without a
+  // shared lock at every call site -- atomic rather than plain bool.
+  std::atomic<bool> debugger_console_scroll_to_bottom;
+  void process_debugger_window_requests();
+  void destroy_debugger_window_now();
+  void draw_debugger_window();
+  void push_debugger_console_input(char c);
+
   _TCHAR fd1_path[_MAX_PATH];
   _TCHAR fd2_path[_MAX_PATH];
   void clear_all_pressed_keys();
@@ -191,7 +240,7 @@ public:
   void force_unlock_vm() {}
   void sleep(uint32_t ms);
 
-  // Console (Stub)
+  // Console (Debug Main CPU / Debug Sub CPU support)
   void open_message_box(const _TCHAR *text);
   void open_console(int width, int height, const char *title);
   void close_console();
@@ -201,7 +250,7 @@ public:
   unsigned int get_console_code_page();
   int read_console_input(char *buffer, unsigned int length);
   bool is_console_closed();
-  void close_debugger_console() {}
+  void close_debugger_console();
   void get_console_cursor_position(int *x, int *y) {
     if (x)
       *x = 0;
@@ -210,7 +259,14 @@ public:
   }
   void set_console_cursor_position(int x, int y) {}
   void write_console_wchar(const wchar_t *buffer, unsigned int length) {}
-  bool is_console_key_pressed(int vk) { return false; }
+  bool is_console_key_pressed(int vk) {
+    // The debugger console is its own OS window (see debugger_window
+    // below); Escape typed there never reaches key_status (the main
+    // window's emulated-keyboard state), so it's tracked separately.
+    if (vk == VK_ESCAPE)
+      return debugger_console_escape_down.load();
+    return (vk > 0 && vk < 256) && (key_status[vk] & 0x80) != 0;
+  }
   // ... add more if needed
 
   // Input
@@ -262,10 +318,16 @@ public:
   void restart_record_sound() {}
   bool now_record_sound = false;
 
-  // Debugger synchronization
+  // Debugger synchronization. process_waiting_in_debugger() is called
+  // repeatedly from the MAIN thread while a debugged CPU is suspended at a
+  // breakpoint (Z80::run_one_opecode()'s wait loop, via EMU::
+  // process_waiting_in_debugger() -- see src/vm/z80.cpp / src/debugger.cpp).
+  // It must keep pumping events and redrawing so the app (including this
+  // debugger console window itself) stays responsive instead of freezing
+  // until the breakpoint is released.
   void start_waiting_in_debugger() {}
   void finish_waiting_in_debugger() {}
-  void process_waiting_in_debugger() {}
+  void process_waiting_in_debugger();
 
   // Video (Stub)
   bool now_record_video = false;
