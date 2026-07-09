@@ -11,6 +11,18 @@
   <a href="https://github.com/bubio/BubiC-8801MA/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/bubio/BubiC-8801MA" alt="License">
   </a>
+  <a href="https://github.com/bubio/BubiC-8801MA/actions/workflows/Linux_arm64.yml">
+    <img src="https://github.com/bubio/BubiC-8801MA/actions/workflows/Linux_arm64.yml/badge.svg" alt="Linux arm64">
+  </a>
+  <a href="https://github.com/bubio/BubiC-8801MA/actions/workflows/Linux_x86_64.yml">
+    <img src="https://github.com/bubio/BubiC-8801MA/actions/workflows/Linux_x86_64.yml/badge.svg" alt="Linux x86_64">
+  </a>
+  <a href="https://github.com/bubio/BubiC-8801MA/actions/workflows/macOS_Universal.yml">
+    <img src="https://github.com/bubio/BubiC-8801MA/actions/workflows/macOS_Universal.yml/badge.svg" alt="macOS">
+  </a>
+  <a href="https://github.com/bubio/BubiC-8801MA/actions/workflows/Windows.yml">
+    <img src="https://github.com/bubio/BubiC-8801MA/actions/workflows/Windows.yml/badge.svg" alt="Windows">
+  </a>
   <a href="https://github.com/bubio/BubiC-8801MA/releases/latest">
     <img src="https://img.shields.io/github/downloads/bubio/BubiC-8801MA/total.svg" alt="Downloads">
   </a>
@@ -19,12 +31,12 @@
 This project is based on the Common Source Project's ePC-8801MA, with Windows-specific parts replaced by SDL3 to support multiple platforms.
 
 
-
 Merging the Common Source Code Project into XM8 was extremely difficult, so this version focuses on core functionality.
 
 
 <p align="center">
   <img src="assets/Screenshot.png" alt="BubiC-8801MA App ScreenShot">
+  <img src="assets/Screenshot2.png" alt="BubiC-8801MA Debugger ScreenShot">
 </p>
 
 
@@ -33,6 +45,19 @@ Merging the Common Source Code Project into XM8 was extremely difficult, so this
 *   **macOS**: macOS 13 Ventura or later
 *   **Linux**: Debian/Ubuntu-based distributions are recommended
 *   **Windows**: Windows 11 or later
+
+
+> Note for macOS: Since this app has not been notarized by Apple, it may be blocked by Gatekeeper when launched for the first time.
+> You can resolve this using one of the following methods:
+> **Method 1: Remove the quarantine flag via Terminal**
+> ```bash
+> xattr -cr /Applications/BubiC-8801MA.app
+> ```
+>
+> **Method 2: Allow via System Settings**
+> 1. Attempt to open the app and let it get blocked
+> 2. Open **System Settings** → **Privacy & Security**
+> 3. Click **"Open Anyway"** next to the message about BubiC-8801MA being blocked
 
 ## License
 
