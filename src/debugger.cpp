@@ -1206,17 +1206,17 @@ void *debugger_thread(void *lpx)
         RESTART_GO:
           cpu_debugger->now_going = true;
           cpu_debugger->now_suspended = false;
-#if defined(_MSC_VER)
+#if defined(OSD_QT)
           while (!p->request_terminate && !cpu_debugger->now_suspended) {
-            if (p->osd->is_console_key_pressed(VK_ESCAPE)) {
+            if (p->osd->console_input_string() != NULL) {
+              p->osd->clear_console_input_string();
               break;
             }
             p->osd->sleep(10);
           }
-#elif defined(OSD_QT)
+#else
           while (!p->request_terminate && !cpu_debugger->now_suspended) {
-            if (p->osd->console_input_string() != NULL) {
-              p->osd->clear_console_input_string();
+            if (p->osd->is_console_key_pressed(VK_ESCAPE)) {
               break;
             }
             p->osd->sleep(10);
