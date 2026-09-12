@@ -331,6 +331,7 @@ void load_config(const _TCHAR* config_path)
 	MyGetPrivateProfileString(_T("RecentFiles"), _T("LastBrowserPath"), _T(""), config.last_browser_path, _MAX_PATH, config_path);
 	config.cursor_as_numpad = MyGetPrivateProfileBool(_T("Host"), _T("CursorAsNumpad"), false, config_path);
 	config.digit_as_numpad = MyGetPrivateProfileBool(_T("Host"), _T("DigitAsNumpad"), false, config_path);
+	config.jis_keyboard = MyGetPrivateProfileBool(_T("Host"), _T("JISKeyboard"), false, config_path);
 	
 	// screen
 	#ifndef ONE_BOARD_MICRO_COMPUTER
@@ -599,6 +600,7 @@ void save_config(const _TCHAR* config_path)
 	MyWritePrivateProfileString(_T("RecentFiles"), _T("LastBrowserPath"), config.last_browser_path, config_path);
 	MyWritePrivateProfileBool(_T("Host"), _T("CursorAsNumpad"), config.cursor_as_numpad, config_path);
 	MyWritePrivateProfileBool(_T("Host"), _T("DigitAsNumpad"), config.digit_as_numpad, config_path);
+	MyWritePrivateProfileBool(_T("Host"), _T("JISKeyboard"), config.jis_keyboard, config_path);
 	
 	// screen
 	#ifndef ONE_BOARD_MICRO_COMPUTER

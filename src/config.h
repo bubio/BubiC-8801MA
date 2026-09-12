@@ -276,6 +276,7 @@ typedef struct {
 	_TCHAR last_browser_path[_MAX_PATH];
 	bool cursor_as_numpad;
 	bool digit_as_numpad;
+	bool jis_keyboard;
 } config_t;
 
 extern DLL_PREFIX config_t config;

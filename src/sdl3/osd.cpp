@@ -132,6 +132,9 @@ namespace Lang {
   static constexpr Msg MouseSensitivity = {"Mouse Sensitivity", "マウス感度", "鼠标灵敏度", "마우스 감도", "Sensibilidad del ratón", "Sensibilité de la souris"};
   static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique"};
   static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드に 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
+  static constexpr Msg KeyboardLayout = {"Keyboard Layout", "キーボード配列", "键盘布局", "키보드 배열", "Distribución de teclado", "Disposition du clavier"};
+  static constexpr Msg KeyboardLayoutUS = {"US", "US配列", "US布局", "US 배열", "US", "US"};
+  static constexpr Msg KeyboardLayoutJIS = {"JIS", "JIS配列", "JIS布局", "JIS 배열", "JIS", "JIS"};
   static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数", "采样率", "샘플링 주파수", "Frecuencia de muestreo", "Fréquence d'échantillonnage"};
   static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ", "音频延迟", "오디오 지연", "Latencia de audio", "Latence audio"};
   static constexpr Msg MuteFM = {"Mute FM", "FM消音", "FM静音", "FM 음소거", "Silenciar FM", "Couper le son FM"};
@@ -950,8 +953,8 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     case SDL_SCANCODE_TAB: vk = 0x09; break;
     case SDL_SCANCODE_INSERT: vk = 0x2D; break;
     case SDL_SCANCODE_DELETE: vk = 0x2E; break;
-    case SDL_SCANCODE_PAGEUP: vk = 0x70; break; // Map to correct F key or VK
-    case SDL_SCANCODE_PAGEDOWN: vk = 0x71; break;
+    case SDL_SCANCODE_PAGEUP: vk = 0x21; break; // PC-8801 ROLL UP
+    case SDL_SCANCODE_PAGEDOWN: vk = 0x22; break; // PC-8801 ROLL DOWN
     case SDL_SCANCODE_END: vk = 0x23; break;
     case SDL_SCANCODE_HOME: vk = 0x24; break;
     case SDL_SCANCODE_LEFT: vk = config.cursor_as_numpad ? 0x64 : 0x25; break;
@@ -1033,17 +1036,29 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     case SDL_SCANCODE_RCTRL: vk = 0x11; break;
     case SDL_SCANCODE_LALT: vk = 0x12; break;
     case SDL_SCANCODE_RALT: vk = 0x12; break;
-    case SDL_SCANCODE_SEMICOLON: vk = 0xBA; break;
-    case SDL_SCANCODE_EQUALS: vk = 0xBB; break;
+    // These OEM-symbol keys are keyed by physical position (SDL scancode),
+    // not by legend, so the VK chosen for each position must match whichever
+    // keyboard the player actually has -- a JIS keyboard prints different
+    // symbols on these keys than a US one. config.jis_keyboard (Host->Input
+    // menu) picks which legend set applies; see key_table in pc88.cpp for
+    // what each VK means on the emulated PC-8801 keyboard.
+    case SDL_SCANCODE_SEMICOLON: vk = 0xBB; break;
+    case SDL_SCANCODE_EQUALS: vk = 0xDE; break;
     case SDL_SCANCODE_COMMA: vk = 0xBC; break;
     case SDL_SCANCODE_MINUS: vk = 0xBD; break;
     case SDL_SCANCODE_PERIOD: vk = 0xBE; break;
     case SDL_SCANCODE_SLASH: vk = 0xBF; break;
-    case SDL_SCANCODE_GRAVE: vk = 0xC0; break;
-    case SDL_SCANCODE_LEFTBRACKET: vk = 0xDB; break;
-    case SDL_SCANCODE_BACKSLASH: vk = 0xDC; break;
-    case SDL_SCANCODE_RIGHTBRACKET: vk = 0xDD; break;
-    case SDL_SCANCODE_APOSTROPHE: vk = 0xDE; break;
+    case SDL_SCANCODE_GRAVE: vk = config.jis_keyboard ? 0 : 0xC0; break;
+    case SDL_SCANCODE_LEFTBRACKET: vk = config.jis_keyboard ? 0xC0 : 0xDB; break;
+    case SDL_SCANCODE_BACKSLASH: vk = config.jis_keyboard ? 0xDD : 0xDC; break;
+    case SDL_SCANCODE_RIGHTBRACKET: vk = config.jis_keyboard ? 0xDB : 0xDD; break;
+    case SDL_SCANCODE_APOSTROPHE: vk = 0xBA; break;
+    // JIS-only physical keys that a US keyboard simply doesn't have.
+    case SDL_SCANCODE_INTERNATIONAL3: vk = 0xDC; break; // Yen
+    case SDL_SCANCODE_INTERNATIONAL1: vk = 0xE2; break; // \ (ろ)
+    case SDL_SCANCODE_INTERNATIONAL4: vk = 0x1C; break; // Henkan (VK_CONVERT)
+    case SDL_SCANCODE_INTERNATIONAL5: vk = 0x1D; break; // Muhenkan (VK_NONCONVERT)
+    case SDL_SCANCODE_LANG1: vk = 0x19; break; // Kana
     default: break;
     }
     // ASCII code for the romaji-to-kana engine (EMU::key_char), which needs
@@ -1072,12 +1087,12 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     } else {
       switch (event.key.scancode) {
       case SDL_SCANCODE_SEMICOLON: ch = ';'; break;
-      case SDL_SCANCODE_EQUALS: ch = '='; break;
-      case SDL_SCANCODE_GRAVE: ch = '`'; break;
-      case SDL_SCANCODE_LEFTBRACKET: ch = '['; break;
-      case SDL_SCANCODE_BACKSLASH: ch = '\\'; break;
-      case SDL_SCANCODE_RIGHTBRACKET: ch = ']'; break;
-      case SDL_SCANCODE_APOSTROPHE: ch = '\''; break;
+      case SDL_SCANCODE_EQUALS: ch = '^'; break;
+      case SDL_SCANCODE_GRAVE: ch = config.jis_keyboard ? 0 : '`'; break;
+      case SDL_SCANCODE_LEFTBRACKET: ch = config.jis_keyboard ? '@' : '['; break;
+      case SDL_SCANCODE_BACKSLASH: ch = config.jis_keyboard ? ']' : '\\'; break;
+      case SDL_SCANCODE_RIGHTBRACKET: ch = config.jis_keyboard ? '[' : ']'; break;
+      case SDL_SCANCODE_APOSTROPHE: ch = ':'; break;
       case SDL_SCANCODE_MINUS: ch = '-'; break;
       case SDL_SCANCODE_COMMA: ch = ','; break;
       case SDL_SCANCODE_PERIOD: ch = '.'; break;
@@ -2998,6 +3013,16 @@ bool OSD::draw_menu_contents() {
         }
         if (ImGui::MenuItem(Lang::MapDigitToNumpad, NULL, config.digit_as_numpad)) {
           config.digit_as_numpad = !config.digit_as_numpad;
+        }
+        ImGui::Separator();
+        if (ImGui::BeginMenu(Lang::KeyboardLayout)) {
+          if (ImGui::MenuItem(Lang::KeyboardLayoutUS, NULL, !config.jis_keyboard)) {
+            config.jis_keyboard = false;
+          }
+          if (ImGui::MenuItem(Lang::KeyboardLayoutJIS, NULL, config.jis_keyboard)) {
+            config.jis_keyboard = true;
+          }
+          ImGui::EndMenu();
         }
         ImGui::EndMenu();
       }
