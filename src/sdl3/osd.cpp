@@ -1750,6 +1750,7 @@ void OSD::draw_status_bar() {
     ImGui::TextUnformatted((const char*)Lang::VolumeLabel);
     ImGui::SameLine(0.0f, 4.0f);
     ImGui::PushItemWidth(100.0f);
+    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
     int vol = config.master_volume;
     if (ImGui::SliderInt("##master_volume", &vol, 0, 100, "%d%%")) {
       if (vol < 0) vol = 0;
@@ -1759,6 +1760,7 @@ void OSD::draw_status_bar() {
         (void)SDL_SetAudioStreamGain(audio_stream, config.master_volume / 100.0f);
       }
     }
+    ImGui::PopItemFlag();
     ImGui::PopItemWidth();
 
     uint64_t now_tick = SDL_GetTicks();
