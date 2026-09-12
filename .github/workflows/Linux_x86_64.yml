@@ -85,12 +85,13 @@ jobs:
           mkdir -p AppDir/usr/share/applications
           cp build/bubic-8801ma.desktop AppDir/usr/share/applications/
 
-          mkdir -p AppDir/usr/share/icons/hicolor/1024x1024/apps
-          cp assets/icon_1024.png AppDir/usr/share/icons/hicolor/1024x1024/apps/bubic-8801ma.png
+          mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
+          sudo apt-get install -y imagemagick
+          convert assets/icon_1024.png -resize 512x512 AppDir/usr/share/icons/hicolor/512x512/apps/bubic-8801ma.png
 
           ARCH=x86_64 ./linuxdeploy --appimage-extract-and-run --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/bubic-8801ma.desktop \
-            --icon-file AppDir/usr/share/icons/hicolor/1024x1024/apps/bubic-8801ma.png \
+            --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/bubic-8801ma.png \
             --output appimage
 
           APPIMAGE_SRC="$(ls BubiC-8801MA*.AppImage | head -n 1)"
