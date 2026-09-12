@@ -1043,16 +1043,16 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     // menu) picks which legend set applies; see key_table in pc88.cpp for
     // what each VK means on the emulated PC-8801 keyboard.
     case SDL_SCANCODE_SEMICOLON: vk = config.jis_keyboard ? 0xBB : 0xBA; break;
-    case SDL_SCANCODE_EQUALS: vk = config.jis_keyboard ? 0xDE : 0xBB; break;
+    case SDL_SCANCODE_EQUALS: vk = 0xDE; break;
     case SDL_SCANCODE_COMMA: vk = 0xBC; break;
     case SDL_SCANCODE_MINUS: vk = 0xBD; break;
     case SDL_SCANCODE_PERIOD: vk = 0xBE; break;
     case SDL_SCANCODE_SLASH: vk = 0xBF; break;
     case SDL_SCANCODE_GRAVE: vk = config.jis_keyboard ? 0 : 0xC0; break;
     case SDL_SCANCODE_LEFTBRACKET: vk = config.jis_keyboard ? 0xC0 : 0xDB; break;
-    case SDL_SCANCODE_BACKSLASH: vk = 0xDC; break;
+    case SDL_SCANCODE_BACKSLASH: vk = config.jis_keyboard ? 0xDD : 0xDC; break;
     case SDL_SCANCODE_RIGHTBRACKET: vk = config.jis_keyboard ? 0xDB : 0xDD; break;
-    case SDL_SCANCODE_APOSTROPHE: vk = config.jis_keyboard ? 0xBA : 0xDE; break;
+    case SDL_SCANCODE_APOSTROPHE: vk = config.jis_keyboard ? 0xBA : 0xDD; break;
     // JIS-only physical keys that a US keyboard simply doesn't have.
     case SDL_SCANCODE_INTERNATIONAL3: vk = 0xDC; break; // Yen
     case SDL_SCANCODE_INTERNATIONAL1: vk = 0xE2; break; // \ (ろ)
@@ -1087,12 +1087,12 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     } else {
       switch (event.key.scancode) {
       case SDL_SCANCODE_SEMICOLON: ch = ';'; break;
-      case SDL_SCANCODE_EQUALS: ch = config.jis_keyboard ? '^' : '='; break;
+      case SDL_SCANCODE_EQUALS: ch = '^'; break;
       case SDL_SCANCODE_GRAVE: ch = config.jis_keyboard ? 0 : '`'; break;
       case SDL_SCANCODE_LEFTBRACKET: ch = config.jis_keyboard ? '@' : '['; break;
-      case SDL_SCANCODE_BACKSLASH: ch = '\\'; break;
+      case SDL_SCANCODE_BACKSLASH: ch = config.jis_keyboard ? ']' : '\\'; break;
       case SDL_SCANCODE_RIGHTBRACKET: ch = config.jis_keyboard ? '[' : ']'; break;
-      case SDL_SCANCODE_APOSTROPHE: ch = config.jis_keyboard ? ':' : '\''; break;
+      case SDL_SCANCODE_APOSTROPHE: ch = config.jis_keyboard ? ':' : ']'; break;
       case SDL_SCANCODE_MINUS: ch = '-'; break;
       case SDL_SCANCODE_COMMA: ch = ','; break;
       case SDL_SCANCODE_PERIOD: ch = '.'; break;
