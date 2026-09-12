@@ -1042,7 +1042,7 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     // symbols on these keys than a US one. config.jis_keyboard (Host->Input
     // menu) picks which legend set applies; see key_table in pc88.cpp for
     // what each VK means on the emulated PC-8801 keyboard.
-    case SDL_SCANCODE_SEMICOLON: vk = config.jis_keyboard ? 0xBB : 0xBA; break;
+    case SDL_SCANCODE_SEMICOLON: vk = 0xBB; break;
     case SDL_SCANCODE_EQUALS: vk = 0xDE; break;
     case SDL_SCANCODE_COMMA: vk = 0xBC; break;
     case SDL_SCANCODE_MINUS: vk = 0xBD; break;
