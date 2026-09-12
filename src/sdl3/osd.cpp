@@ -1052,7 +1052,7 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
     case SDL_SCANCODE_LEFTBRACKET: vk = config.jis_keyboard ? 0xC0 : 0xDB; break;
     case SDL_SCANCODE_BACKSLASH: vk = config.jis_keyboard ? 0xDD : 0xDC; break;
     case SDL_SCANCODE_RIGHTBRACKET: vk = config.jis_keyboard ? 0xDB : 0xDD; break;
-    case SDL_SCANCODE_APOSTROPHE: vk = config.jis_keyboard ? 0xBA : 0xDD; break;
+    case SDL_SCANCODE_APOSTROPHE: vk = 0xBA; break;
     // JIS-only physical keys that a US keyboard simply doesn't have.
     case SDL_SCANCODE_INTERNATIONAL3: vk = 0xDC; break; // Yen
     case SDL_SCANCODE_INTERNATIONAL1: vk = 0xE2; break; // \ (ろ)
@@ -1092,7 +1092,7 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
       case SDL_SCANCODE_LEFTBRACKET: ch = config.jis_keyboard ? '@' : '['; break;
       case SDL_SCANCODE_BACKSLASH: ch = config.jis_keyboard ? ']' : '\\'; break;
       case SDL_SCANCODE_RIGHTBRACKET: ch = config.jis_keyboard ? '[' : ']'; break;
-      case SDL_SCANCODE_APOSTROPHE: ch = config.jis_keyboard ? ':' : ']'; break;
+      case SDL_SCANCODE_APOSTROPHE: ch = ':'; break;
       case SDL_SCANCODE_MINUS: ch = '-'; break;
       case SDL_SCANCODE_COMMA: ch = ','; break;
       case SDL_SCANCODE_PERIOD: ch = '.'; break;
