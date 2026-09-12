@@ -457,6 +457,10 @@ OSD::OSD() {
   memset(key_status, 0, sizeof(key_status));
   memset(key_romaji_active, 0, sizeof(key_romaji_active));
   memset(joy_status, 0, sizeof(joy_status));
+  joykey_hat_dir = 0;
+  joykey_lstick_dir = 0;
+  joykey_rstick_dir = 0;
+  memset(joykey_btn, 0, sizeof(joykey_btn));
   memset(mouse_status, 0, sizeof(mouse_status));
 }
 
@@ -550,8 +554,21 @@ void OSD::initialize(int rate, int samples) {
   SDL_JoystickID *joysticks = SDL_GetJoysticks(&num_joysticks);
   if (joysticks) {
     OSD_LOG("Found %d joysticks", num_joysticks);
+    for (int i = 0; i < num_joysticks; i++) {
+      OSD_LOG("  [%d] id=%u name=%s", i, joysticks[i],
+              SDL_GetJoystickNameForID(joysticks[i]));
+    }
     if (num_joysticks > 0) {
       joystick = SDL_OpenJoystick(joysticks[0]);
+      if (joystick) {
+        OSD_LOG("Opened joystick[0]: %s axes=%d buttons=%d hats=%d",
+                SDL_GetJoystickName(joystick),
+                SDL_GetNumJoystickAxes(joystick),
+                SDL_GetNumJoystickButtons(joystick),
+                SDL_GetNumJoystickHats(joystick));
+      } else {
+        OSD_LOG("Opened joystick[0]: FAILED (%s)", SDL_GetError());
+      }
     }
     SDL_free(joysticks);
   }
@@ -921,16 +938,82 @@ void OSD::update_input() {
     }
     const bool is_key_event =
         (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP);
+    // Joystick-to-Key turns these into synthetic key presses, so they must
+    // keep flowing the same way real key events do -- otherwise merely
+    // hovering the menu bar (which sets io.WantCaptureMouse) would silently
+    // swallow all gamepad input until the view is clicked again.
+    const bool is_joystick_event =
+        (event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION ||
+         event.type == SDL_EVENT_JOYSTICK_HAT_MOTION ||
+         event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN ||
+         event.type == SDL_EVENT_JOYSTICK_BUTTON_UP ||
+         event.type == SDL_EVENT_JOYSTICK_ADDED ||
+         event.type == SDL_EVENT_JOYSTICK_REMOVED);
     const bool block_vm_keydown =
         ui_interacting;
 
     // Let ImGui capture non-key events, but keep key events flowing for
     // key-state synchronization (especially KEY_UP).
-    if ((io.WantCaptureMouse || io.WantCaptureKeyboard) && !is_key_event) {
+    if ((io.WantCaptureMouse || io.WantCaptureKeyboard) && !is_key_event &&
+        !is_joystick_event) {
       continue;
     }
     handle_event(event, block_vm_keydown);
   }
+}
+
+namespace {
+// Joystick-to-Key: fixed default mapping, not user-configurable.
+// D-pad and right stick follow the host's cursor-as-numpad setting the
+// same way the physical cursor keys do; the left stick is always numpad.
+// Buttons 0-3 -> Z / X / Space / Return.
+constexpr int kArrowUp = 0x26;
+constexpr int kArrowDown = 0x28;
+constexpr int kArrowLeft = 0x25;
+constexpr int kArrowRight = 0x27;
+constexpr int kNumpadUp = 0x68;
+constexpr int kNumpadDown = 0x62;
+constexpr int kNumpadLeft = 0x64;
+constexpr int kNumpadRight = 0x66;
+constexpr int kJoyKeyBtn[4] = {'Z', 'X', 0x20 /* Space */, 0x0D /* Return */};
+} // namespace
+
+void OSD::joykey_apply(int vk, bool pressed, bool block_vm_keydown) {
+  if (vk <= 0 || vk >= 256) return;
+  const bool was_down = ((key_status[vk] & 0x80) != 0);
+  if (pressed == was_down) return;
+  OSD_LOG("Joystick-to-Key: vk=0x%02x %s (vm=%p block=%d)", vk,
+          pressed ? "down" : "up", (void *)vm, block_vm_keydown);
+  if (pressed) {
+    key_status[vk] = 0x80;
+    if (vm && !block_vm_keydown) {
+      vm->key_down(vk, false);
+    }
+  } else {
+    key_status[vk] = 0;
+    if (vm) {
+      vm->key_up(vk);
+    }
+  }
+}
+
+void OSD::joykey_update_direction(bool block_vm_keydown) {
+  // D-pad targets arrow keys or numpad depending on the existing host
+  // setting (like the physical cursor keys do); the left stick always
+  // targets numpad, and the right stick always targets arrow keys.
+  const bool numpad = config.cursor_as_numpad;
+  uint8_t arrow_dir = (numpad ? 0 : joykey_hat_dir) | joykey_rstick_dir;
+  uint8_t numpad_dir = (numpad ? joykey_hat_dir : 0) | joykey_lstick_dir;
+
+  joykey_apply(kArrowUp, (arrow_dir & 0x01) != 0, block_vm_keydown);
+  joykey_apply(kArrowDown, (arrow_dir & 0x02) != 0, block_vm_keydown);
+  joykey_apply(kArrowLeft, (arrow_dir & 0x04) != 0, block_vm_keydown);
+  joykey_apply(kArrowRight, (arrow_dir & 0x08) != 0, block_vm_keydown);
+
+  joykey_apply(kNumpadUp, (numpad_dir & 0x01) != 0, block_vm_keydown);
+  joykey_apply(kNumpadDown, (numpad_dir & 0x02) != 0, block_vm_keydown);
+  joykey_apply(kNumpadLeft, (numpad_dir & 0x04) != 0, block_vm_keydown);
+  joykey_apply(kNumpadRight, (numpad_dir & 0x08) != 0, block_vm_keydown);
 }
 
 void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
@@ -1174,29 +1257,78 @@ void OSD::handle_event(const SDL_Event &event, bool block_vm_keydown) {
       }
     }
   } else if (event.type == SDL_EVENT_JOYSTICK_AXIS_MOTION) {
-    if (event.jaxis.axis < 2) {
-      // Map axis to digital directions for now (common in retropc emus)
-      int stick = 0; // Stick 0
-      if (event.jaxis.axis == 0) { // X-axis
-        if (event.jaxis.value < -16384) joy_status[stick] |= 0x04; // Left
-        else joy_status[stick] &= ~0x04;
-        if (event.jaxis.value > 16384) joy_status[stick] |= 0x08; // Right
-        else joy_status[stick] &= ~0x08;
-      } else if (event.jaxis.axis == 1) { // Y-axis
-        if (event.jaxis.value < -16384) joy_status[stick] |= 0x01; // Up
-        else joy_status[stick] &= ~0x01;
-        if (event.jaxis.value > 16384) joy_status[stick] |= 0x02; // Down
-        else joy_status[stick] &= ~0x02;
-      }
+    // Joystick-to-Key: left stick is axes 0/1, right stick is axes 2/3
+    // (standard SDL gamepad axis order).
+    if (event.jaxis.axis == 0) { // Left stick X
+      if (event.jaxis.value < -16384) joykey_lstick_dir |= 0x04; // Left
+      else joykey_lstick_dir &= ~0x04;
+      if (event.jaxis.value > 16384) joykey_lstick_dir |= 0x08; // Right
+      else joykey_lstick_dir &= ~0x08;
+      joykey_update_direction(block_vm_keydown);
+    } else if (event.jaxis.axis == 1) { // Left stick Y
+      if (event.jaxis.value < -16384) joykey_lstick_dir |= 0x01; // Up
+      else joykey_lstick_dir &= ~0x01;
+      if (event.jaxis.value > 16384) joykey_lstick_dir |= 0x02; // Down
+      else joykey_lstick_dir &= ~0x02;
+      joykey_update_direction(block_vm_keydown);
+    } else if (event.jaxis.axis == 2) { // Right stick X
+      if (event.jaxis.value < -16384) joykey_rstick_dir |= 0x04; // Left
+      else joykey_rstick_dir &= ~0x04;
+      if (event.jaxis.value > 16384) joykey_rstick_dir |= 0x08; // Right
+      else joykey_rstick_dir &= ~0x08;
+      joykey_update_direction(block_vm_keydown);
+    } else if (event.jaxis.axis == 3) { // Right stick Y
+      if (event.jaxis.value < -16384) joykey_rstick_dir |= 0x01; // Up
+      else joykey_rstick_dir &= ~0x01;
+      if (event.jaxis.value > 16384) joykey_rstick_dir |= 0x02; // Down
+      else joykey_rstick_dir &= ~0x02;
+      joykey_update_direction(block_vm_keydown);
+    }
+  } else if (event.type == SDL_EVENT_JOYSTICK_HAT_MOTION) {
+    // Many gamepads report the D-pad as a hat rather than an axis pair.
+    if (event.jhat.hat == 0) {
+      uint8_t hat = event.jhat.value;
+      joykey_hat_dir = 0;
+      if (hat & SDL_HAT_UP) joykey_hat_dir |= 0x01;
+      if (hat & SDL_HAT_DOWN) joykey_hat_dir |= 0x02;
+      if (hat & SDL_HAT_LEFT) joykey_hat_dir |= 0x04;
+      if (hat & SDL_HAT_RIGHT) joykey_hat_dir |= 0x08;
+      joykey_update_direction(block_vm_keydown);
     }
   } else if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN || event.type == SDL_EVENT_JOYSTICK_BUTTON_UP) {
-    int stick = 0;
+    // Joystick-to-Key: only the first four buttons are mapped
+    // (Z / X / Space / Return), the fixed default assignment -- there is
+    // no button configuration.
     int button = event.jbutton.button;
-    if (button < 12) { // Map buttons 0-11 to bits 4-15
-      if (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
-        joy_status[stick] |= (1 << (button + 4));
-      } else {
-        joy_status[stick] &= ~(1 << (button + 4));
+    bool pressed = (event.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN);
+    OSD_LOG("Joystick button %d %s", button, pressed ? "down" : "up");
+    if (button >= 0 && button < 4) {
+      joykey_btn[button] = pressed;
+      joykey_apply(kJoyKeyBtn[button], pressed, block_vm_keydown);
+    }
+  } else if (event.type == SDL_EVENT_JOYSTICK_ADDED) {
+    // Hot-plug: open the first controller if none is active yet.
+    OSD_LOG("Joystick added: id=%u", event.jdevice.which);
+    if (!joystick) {
+      joystick = SDL_OpenJoystick(event.jdevice.which);
+      OSD_LOG("Joystick open %s: %s",
+              joystick ? "succeeded" : "FAILED",
+              joystick ? SDL_GetJoystickName(joystick) : SDL_GetError());
+    }
+  } else if (event.type == SDL_EVENT_JOYSTICK_REMOVED) {
+    if (joystick && SDL_GetJoystickID(joystick) == event.jdevice.which) {
+      SDL_CloseJoystick(joystick);
+      joystick = NULL;
+      // Release any keys the departing controller was holding.
+      joykey_hat_dir = 0;
+      joykey_lstick_dir = 0;
+      joykey_rstick_dir = 0;
+      joykey_update_direction(block_vm_keydown);
+      for (int i = 0; i < 4; i++) {
+        if (joykey_btn[i]) {
+          joykey_btn[i] = false;
+          joykey_apply(kJoyKeyBtn[i], false, block_vm_keydown);
+        }
       }
     }
   } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
@@ -1294,6 +1426,12 @@ void OSD::clear_all_pressed_keys() {
     }
   }
   memset(key_romaji_active, 0, sizeof(key_romaji_active));
+  // Forget any joystick-to-key state too, so an unmoved controller doesn't
+  // silently resume a key it never released a fresh event for.
+  joykey_hat_dir = 0;
+  joykey_lstick_dir = 0;
+  joykey_rstick_dir = 0;
+  memset(joykey_btn, 0, sizeof(joykey_btn));
   if (!vm) {
     memset(key_status, 0, sizeof(key_status));
     return;
@@ -2497,7 +2635,11 @@ void OSD::initialize_imgui() {
   static std::string ini_path = std::string(get_application_path()) + "imgui.ini";
   io.IniFilename = ini_path.c_str();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  // Deliberately NOT setting ImGuiConfigFlags_NavEnableGamepad: ImGui's
+  // SDL3 backend would then open/poll the same physical controller itself
+  // (for menu navigation), fighting with our own exclusive SDL_Joystick
+  // handle used for Joystick-to-Key and making input land only some of
+  // the time.
   OSD_LOG("ImGui context created, ini_path=%s", ini_path.c_str());
 
   ImGui::StyleColorsDark();
