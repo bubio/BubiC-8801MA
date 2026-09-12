@@ -66,6 +66,19 @@ private:
   // config.romaji_to_kana can't split one physical press across both paths.
   bool key_romaji_active[256];
   uint32_t joy_status[4];
+  // Joystick-to-Key: a connected gamepad's D-pad, both sticks, and buttons
+  // 0-3 are translated into fixed keyboard key presses. There is no
+  // configuration for this -- the mapping is not user-editable, except that
+  // the D-pad follows the existing "cursor keys to numpad" host setting
+  // (config.cursor_as_numpad) the same way the real keyboard's cursor keys
+  // do. The left stick is always the numeric keypad and the right stick is
+  // always the arrow keys, regardless of that setting.
+  void joykey_apply(int vk, bool pressed, bool block_vm_keydown);
+  void joykey_update_direction(bool block_vm_keydown);
+  uint8_t joykey_hat_dir;    // D-pad; bit0 up, bit1 down, bit2 left, bit3 right
+  uint8_t joykey_lstick_dir; // Left stick; same bit layout, always numpad
+  uint8_t joykey_rstick_dir; // Right stick; same bit layout, follows cursor_as_numpad
+  bool joykey_btn[4];
   int32_t mouse_status[8];
   double mouse_remainder_x;
   double mouse_remainder_y;

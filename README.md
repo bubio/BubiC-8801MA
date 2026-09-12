@@ -59,6 +59,20 @@ Merging the Common Source Code Project into XM8 was extremely difficult, so this
 > 2. Open **System Settings** → **Privacy & Security**
 > 3. Click **"Open Anyway"** next to the message about BubiC-8801MA being blocked
 
+## Gamepad Support (Joystick-to-Key)
+
+A connected SDL-recognized gamepad is automatically translated into fixed keyboard key presses -- there is no configuration UI or button assignment screen for this.
+
+| Input | Key(s) |
+|---|---|
+| D-pad | Cursor keys (follows the Input menu's "Map cursor keys to Numpad" setting) |
+| Left stick | Numpad 2 / 4 / 6 / 8 (always, regardless of that setting) |
+| Right stick | Cursor keys (always, regardless of that setting) |
+| Button 1 | `Z` |
+| Button 2 | `X` |
+| Button 3 | `Space` |
+| Button 4 | `Return` |
+
 ## License
 
 This project is based on Takeda-san's [ePC-8801MA](https://takeda-toshiya.my.coocan.jp/common/index.html) (Common Source Project), January 1, 2026 edition.
