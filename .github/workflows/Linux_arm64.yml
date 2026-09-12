@@ -72,6 +72,37 @@ jobs:
           cp -f "${DEB_SRC}" build/BubiC-8801MA-linux-arm64.deb
           cp -f "${RPM_SRC}" build/BubiC-8801MA-linux-arm64.rpm
 
+      - name: Build AppImage
+        if: github.event_name == 'release'
+        run: |
+          set -euo pipefail
+          wget -q -O linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage
+          chmod +x linuxdeploy
+
+          mkdir -p AppDir/usr/bin
+          cp build/BubiC-8801MA AppDir/usr/bin/
+
+          mkdir -p AppDir/usr/share/applications
+          cp build/bubic-8801ma.desktop AppDir/usr/share/applications/
+
+          mkdir -p AppDir/usr/share/icons/hicolor/1024x1024/apps
+          cp assets/icon_1024.png AppDir/usr/share/icons/hicolor/1024x1024/apps/bubic-8801ma.png
+
+          ARCH=aarch64 ./linuxdeploy --appimage-extract-and-run --appdir AppDir \
+            --desktop-file AppDir/usr/share/applications/bubic-8801ma.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/1024x1024/apps/bubic-8801ma.png \
+            --output appimage
+
+          APPIMAGE_SRC="$(ls BubiC-8801MA*.AppImage | head -n 1)"
+          mv "${APPIMAGE_SRC}" build/BubiC-8801MA-linux-arm64.AppImage
+
+      - name: Upload AppImage Artifact
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: BubiC-8801MA_Linux_arm64_AppImage
+          path: build/BubiC-8801MA-linux-arm64.AppImage
+
       - name: Upload DEB Artifact
         if: github.event_name == 'release'
         uses: actions/upload-artifact@v7
@@ -101,5 +132,14 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: build/BubiC-8801MA-linux-arm64.rpm
+          overwrite: true
+          tag: ${{ github.ref_name }}
+
+      - name: Update Release AppImage
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/BubiC-8801MA-linux-arm64.AppImage
           overwrite: true
           tag: ${{ github.ref_name }}
