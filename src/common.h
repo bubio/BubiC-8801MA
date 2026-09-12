@@ -10,7 +10,7 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-#define APP_VERSION_STRING "1.0.8"
+#define APP_VERSION_STRING "1.0.9"
 #define APP_NAME_STRING "BubiC-8801MA"
 #define APP_COPYRIGHT_STRING "Copyright (C) 2026 Bubio"
 
