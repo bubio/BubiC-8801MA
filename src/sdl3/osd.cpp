@@ -3060,7 +3060,7 @@ bool OSD::draw_menu_contents() {
         if (ImGui::MenuItem("N88-V1(S) mode", NULL, config.boot_mode == 0)) { config.boot_mode = 0; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N88-V1(H) mode", NULL, config.boot_mode == 1)) { config.boot_mode = 1; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N88-V2 mode", NULL, config.boot_mode == 2)) { config.boot_mode = 2; if(emu) emu->reset(); }
-        if (ImGui::MenuItem("N mode", NULL, config.boot_mode == 3)) { config.boot_mode = 3; if(vm) vm->update_config(); } // Keep VM update if intended
+        if (ImGui::MenuItem("N mode", NULL, config.boot_mode == 3)) { config.boot_mode = 3; if(emu) emu->reset(); }
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu(Lang::CPU)) {

@@ -691,6 +691,8 @@ DEVICE* VM::get_device(int id)
 
 void VM::reset()
 {
+	boot_mode = config.boot_mode;
+
 	// reset all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {
 		device->reset();
