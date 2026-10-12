@@ -322,6 +322,7 @@ private:
 	
 	// misc
 	bool usart_dcd;
+	bool boot_from_rom;
 	bool opn_busy;
 	
 	// keyboard
@@ -615,6 +616,10 @@ public:
 	void play_tape(const _TCHAR* file_path);
 	void rec_tape(const _TCHAR* file_path);
 	void close_tape();
+	void set_boot_from_rom(bool value)
+	{
+		boot_from_rom = value;
+	}
 	bool is_tape_inserted()
 	{
 		return (cmt_play || cmt_rec);

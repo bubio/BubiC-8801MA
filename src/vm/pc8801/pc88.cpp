@@ -270,6 +270,7 @@ static const uint8_t intr_mask2_table[8] = {
 
 void PC88::initialize() {
   memset(rdmy, 0xff, sizeof(rdmy));
+  boot_from_rom = false;
 
 //	memset(ram, 0, sizeof(ram));
 #ifdef PC88_EXRAM_BANKS
@@ -1047,32 +1048,60 @@ void PC88::write_io8(uint32_t addr, uint32_t data) {
 #ifdef SUPPORT_QUASIS88_CMT
     // load tape image ??? (from QUASI88)
     if ((config.dipswitch & DIPSWITCH_QUASIS88_CMT) && cmt_play) {
-      while (cmt_buffer[cmt_bufptr++] != 0x3a) {
-        if (!(cmt_bufptr <= cmt_bufcnt))
-          return;
-      }
-      int val, sum, ptr, len, wait;
-      sum = (val = cmt_buffer[cmt_bufptr++]);
-      ptr = val << 8;
-      sum += (val = cmt_buffer[cmt_bufptr++]);
-      ptr |= val;
-      sum += (val = cmt_buffer[cmt_bufptr++]);
-      if ((sum & 0xff) != 0)
-        return;
+      // The tape keeps streaming into the SIO while BASIC loads the stub, so
+      // it may have run past the machine code header. Back up a little and
+      // rescan (same as Bubilator88).
+      cmt_bufptr = (cmt_bufptr > 16) ? cmt_bufptr - 16 : 0;
+      auto read_byte = [&](int &val) -> bool {
+        if (cmt_bufptr >= cmt_bufcnt)
+          return false;
+        val = cmt_buffer[cmt_bufptr++];
+        return true;
+      };
+      auto seek_marker = [&]() -> bool {
+        int val;
+        do {
+          if (!read_byte(val))
+            return false;
+        } while (val != 0x3a);
+        return true;
+      };
 
+      // header: 0x3a, addr_h, addr_l, sum
+      int val, sum, ptr, len;
       while (1) {
-        while (cmt_buffer[cmt_bufptr++] != 0x3a) {
-          if (!(cmt_bufptr <= cmt_bufcnt))
-            return;
+        if (!seek_marker())
+          return;
+        int marker_end = cmt_bufptr;
+        int hi, lo, chk;
+        if (!read_byte(hi) || !read_byte(lo) || !read_byte(chk))
+          return;
+        if (((hi + lo + chk) & 0xff) == 0) {
+          ptr = (hi << 8) | lo;
+          break;
         }
-        sum = (len = cmt_buffer[cmt_bufptr++]);
+        // one of the bytes just read may be the real marker
+        cmt_bufptr = marker_end;
+      }
+
+      // blocks: 0x3a, len, data[len], sum ... until len == 0
+      while (1) {
+        if (!seek_marker() || !read_byte(len))
+          return;
         if (len == 0)
           break;
+        sum = len;
         for (; len; len--) {
-          sum += (val = cmt_buffer[cmt_bufptr++]);
-          write_data8w(ptr++, val, &wait);
+          if (!read_byte(val))
+            return;
+          sum += val;
+          // main RAM directly, as QUASI88 main_mem_write()
+          ram[ptr & 0xffff] = val;
+          ptr++;
         }
-        sum += cmt_buffer[cmt_bufptr++];
+        if (!read_byte(val))
+          return;
+        sum += val;
         if ((sum & 0xff) != 0)
           return;
       }
@@ -1891,8 +1920,9 @@ uint32_t PC88::read_io8_debug(uint32_t addr)
     // XM8 version 1.10
     //		return (crtc.vblank ? 0x20 : 0) | (d_rtc->read_signal(0) ? 0x10
     //: 0) | (usart_dcd ? 4 : 0) | (hireso ? 0 : 2) | 0xc1;
+    // bit 3: boot device switch (1 = ROM, 0 = DISK), as QUASI88 SW_ROMBOOT
     return (crtc.vblank ? 0x20 : 0) | (d_rtc->read_signal(0) ? 0x10 : 0) |
-           (usart_dcd ? 4 : 0) | (hireso ? 0 : 2) |
+           (boot_from_rom ? 8 : 0) | (usart_dcd ? 4 : 0) | (hireso ? 0 : 2) |
            (d_prn->read_signal(SIG_PRINTER_BUSY) ? 1 : 0) | 0xc0;
 #ifdef SUPPORT_PC88_OPN1
   case 0x44:

@@ -136,6 +136,7 @@ private:
   bool pending_memdump;
   std::string pending_memdump_dir;
   bool native_dialog_open;
+  bool prev_native_dialog_open;
   bool imgui_initialized;
   uint64_t last_ui_interaction_tick;
   bool ui_interacting;
@@ -149,11 +150,16 @@ private:
   void process_pending_insert();
   void process_pending_dd();
   void process_pending_save();
+  void select_tape_file(bool play);
+  void process_pending_tape();
+  void insert_tape(const std::string &full_path, bool play);
   int pending_blank_type;
   int pending_drive;
   std::string pending_insert_path;
   std::string pending_dd_path;
   std::string pending_save_path;
+  std::string pending_tape_path;
+  bool pending_tape_play;
   std::string pending_screenshot_path;
   std::mutex screenshot_mutex;
   void show_screenshot_dialog();

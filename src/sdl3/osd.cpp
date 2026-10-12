@@ -106,6 +106,17 @@ namespace Lang {
   static constexpr Msg ImageN = {"Image %d", "イメージ %d", "镜像 %d", "이미지 %d", "Imagen %d", "Image %d"};
   static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)", "(未插入磁盘)", "(디스크 없음)", "(Sin disco)", "(Aucun disque)"};
   static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク", "最近使用的磁盘", "최근 사용한 디스크", "Discos recientes", "Disques récents"};
+  static constexpr Msg Play = {"Play...", "再生...", "播放...", "재생...", "Reproducir...", "Lecture..."};
+  static constexpr Msg Rec = {"Rec...", "録音...", "录音...", "녹음...", "Grabar...", "Enregistrer..."};
+  static constexpr Msg Recording = {"(Rec)", "(録音中)", "(录音中)", "(녹음 중)", "(Grabando)", "(Enregistrement)"};
+  static constexpr Msg NoTapeInserted = {"(No tape inserted)", "(未挿入)", "(未插入磁带)", "(테이프 없음)", "(Sin cinta)", "(Aucune cassette)"};
+  static constexpr Msg RecentTapes = {"Recent Tapes", "最近使ったテープ", "最近使用的磁带", "최근 사용한 테이프", "Cintas recientes", "Cassettes récentes"};
+  static constexpr Msg SpecialFeatures = {"Special Features", "特殊機能", "特殊功能", "특수 기능", "Funciones especiales", "Fonctions spéciales"};
+  static constexpr Msg QuasiCmt = {"QUASI88 Pseudo CMT", "QUASI88 擬似CMT", "QUASI88 模拟CMT", "QUASI88 의사 CMT", "CMT simulado de QUASI88", "CMT simulé QUASI88"};
+  static constexpr Msg BootDevice = {"Boot Device", "起動デバイス", "启动设备", "부팅 장치", "Dispositivo de arranque", "Périphérique de démarrage"};
+  static constexpr Msg BootDeviceAuto = {"Auto (ROM if FD1 is empty)", "自動 (FD1が空ならROM)", "自动 (FD1为空时ROM)", "자동 (FD1이 비면 ROM)", "Automático (ROM si FD1 vacía)", "Auto (ROM si FD1 vide)"};
+  static constexpr Msg BootDeviceRom = {"ROM", "ROM", "ROM", "ROM", "ROM", "ROM"};
+  static constexpr Msg BootDeviceDisk = {"Disk", "ディスク", "磁盘", "디스크", "Disco", "Disque"};
   static constexpr Msg Device = {"Device", "デバイス", "设备", "장치", "Dispositivo", "Appareil"};
   static constexpr Msg Boot = {"Boot", "起動モード", "启动模式", "부팅 모드", "Modo de inicio", "Mode de démarrage"};
   static constexpr Msg CPU = {"CPU", "CPU", "处理器", "CPU", "CPU", "Processeur"};
@@ -426,6 +437,7 @@ OSD::OSD() {
   show_menu = true;
   pending_memdump = false;
   native_dialog_open = false;
+  prev_native_dialog_open = false;
   imgui_initialized = false;
   ui_interacting = false;
   ui_interacting_reason = UI_REASON_NONE;
@@ -437,6 +449,7 @@ OSD::OSD() {
   fd1_path[0] = _T('\0');
   fd2_path[0] = _T('\0');
   pending_blank_type = 0;
+  pending_tape_play = true;
   vm_screen_buffer = NULL;
   vm_screen_width = 0;
   vm_screen_height = 0;
@@ -472,36 +485,59 @@ OSD::~OSD() {
   }
 }
 
-static void add_recent_disk(const _TCHAR* path, int drv) {
-  if (!path || path[0] == _T('\0') || drv >= USE_FLOPPY_DISK) return;
+// 履歴配列の先頭にパスを追加する（重複は除去）
+static void add_recent_path(_TCHAR (*recent)[_MAX_PATH], const _TCHAR* path) {
+  if (!path || path[0] == _T('\0')) return;
 
   // 入力ポインタが自身の配列内を指している場合に備え、一時バッファにコピー
   _TCHAR new_path[_MAX_PATH];
   my_tcscpy_s(new_path, _MAX_PATH, path);
+#ifdef __APPLE__
+  // ダイアログとドラッグ&ドロップで NFC/NFD が混在するため、NFC に揃えて保存・比較する
+  my_tcscpy_s(new_path, _MAX_PATH, nfd_to_nfc(new_path).c_str());
+  for (int i = 0; i < MAX_HISTORY && recent[i][0] != _T('\0'); i++) {
+    my_tcscpy_s(recent[i], _MAX_PATH, nfd_to_nfc(recent[i]).c_str());
+  }
+#endif
 
   // 一旦、既存の重複をすべて詰めて消去する（古いバグで混入した重複も掃除）
   int write_idx = 0;
   for (int read_idx = 0; read_idx < MAX_HISTORY; read_idx++) {
-    if (config.recent_floppy_disk_path[drv][read_idx][0] == _T('\0')) break;
+    if (recent[read_idx][0] == _T('\0')) break;
 
     // 同じパスでなければ残す
-    if (_tcsicmp(config.recent_floppy_disk_path[drv][read_idx], new_path) != 0) {
+    if (_tcsicmp(recent[read_idx], new_path) != 0) {
       if (write_idx != read_idx) {
-        my_tcscpy_s(config.recent_floppy_disk_path[drv][write_idx], _MAX_PATH, config.recent_floppy_disk_path[drv][read_idx]);
+        my_tcscpy_s(recent[write_idx], _MAX_PATH, recent[read_idx]);
       }
       write_idx++;
     }
   }
   // 残りの部分を空にする
   for (int i = write_idx; i < MAX_HISTORY; i++) {
-    config.recent_floppy_disk_path[drv][i][0] = _T('\0');
+    recent[i][0] = _T('\0');
   }
 
   // 全体を一つ後ろにずらして、先頭に新しいパスを入れる
   for (int i = MAX_HISTORY - 1; i > 0; i--) {
-    my_tcscpy_s(config.recent_floppy_disk_path[drv][i], _MAX_PATH, config.recent_floppy_disk_path[drv][i-1]);
+    my_tcscpy_s(recent[i], _MAX_PATH, recent[i-1]);
   }
-  my_tcscpy_s(config.recent_floppy_disk_path[drv][0], _MAX_PATH, new_path);
+  my_tcscpy_s(recent[0], _MAX_PATH, new_path);
+}
+
+static void add_recent_disk(const _TCHAR* path, int drv) {
+  if (drv >= USE_FLOPPY_DISK) return;
+  add_recent_path(config.recent_floppy_disk_path[drv], path);
+}
+
+static void add_recent_tape(const _TCHAR* path) {
+  add_recent_path(config.recent_tape_path[0], path);
+}
+
+static bool is_tape_file(const std::string &path) {
+  std::string ext = path_to_utf8(utf8_to_fs_path(path.c_str()).extension());
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+  return (ext == ".cas" || ext == ".cmt" || ext == ".t88" || ext == ".n80");
 }
 
 void OSD::initialize(int rate, int samples) {
@@ -692,7 +728,7 @@ void OSD::update_sound(int *extra_frames) {
 
   // Keep audio playback speed aligned with CPU multiplier.
   float desired_ratio = 1.0f;
-  if (!config.full_speed) {
+  if (!(emu ? emu->is_fast_forward() : config.full_speed)) {
     float mul = config.cpu_power;
     if (mul < 0.25f) mul = 1.0f;
     if (mul > 16.0f) mul = 16.0f;
@@ -1605,7 +1641,7 @@ int OSD::draw_screen() {
 
 
   // Speed control via VSync. Apply only when mode changes.
-  const int desired_vsync_mode = config.full_speed ? 0 : 1;
+  const int desired_vsync_mode = (emu ? emu->is_fast_forward() : config.full_speed) ? 0 : 1;
   if (applied_vsync_mode != desired_vsync_mode) {
     SDL_SetRenderVSync(renderer, desired_vsync_mode);
     applied_vsync_mode = desired_vsync_mode;
@@ -1756,9 +1792,17 @@ int OSD::draw_screen() {
     vm_screen_rect_valid = true;
     SDL_RenderTexture(renderer, screen_texture, NULL, &dest_rect);
 
+    // Closing a native file dialog does not hand key focus back to the main
+    // window on macOS, so keys don't reach the VM until it is clicked.
+    if (prev_native_dialog_open && !native_dialog_open) {
+      SDL_RaiseWindow(window);
+    }
+    prev_native_dialog_open = native_dialog_open;
+
     process_pending_insert();
     process_pending_dd();
     process_pending_save();
+    process_pending_tape();
     process_pending_screenshot();
 
     // Pause emulation only when settings UI is actually open.
@@ -1855,13 +1899,9 @@ void OSD::draw_status_bar() {
       accessed = ((VM*)vm)->is_floppy_disk_accessed();
     }
 
-    for (int i = 1; i >= 0; i--) {
-      if (i != 1) {
-        ImGui::SameLine(0.0f, 10.0f);
-      }
-      bool active = (accessed & (1 << i));
+    auto draw_lamp = [](const char *label, ImU32 fill) {
       ImGui::AlignTextToFramePadding();
-      ImGui::Text("FD%d:", i + 1);
+      ImGui::TextUnformatted(label);
       ImVec2 text_min = ImGui::GetItemRectMin();
       ImVec2 text_max = ImGui::GetItemRectMax();
       float text_center_y = (text_min.y + text_max.y) * 0.5f + 1;
@@ -1874,15 +1914,36 @@ void OSD::draw_status_bar() {
       ImVec2 lamp_max(cursor.x + lamp_size, lamp_y + lamp_size);
 
       ImDrawList *dl = ImGui::GetWindowDrawList();
-      ImU32 fill = active ? IM_COL32(255, 32, 32, 255) : IM_COL32(64, 16, 16, 255);
       dl->AddRectFilled(lamp_min, lamp_max, fill, 2.0f);
       dl->AddRect(lamp_min, lamp_max, IM_COL32(200, 200, 200, 96), 2.0f);
 
       // Reserve layout width/height in the same line after custom draw.
       ImGui::Dummy(ImVec2(lamp_size, text_max.y - text_min.y));
+    };
+
+    for (int i = 1; i >= 0; i--) {
+      if (i != 1) {
+        ImGui::SameLine(0.0f, 10.0f);
+      }
+      bool active = (accessed & (1 << i));
+      char label[8];
+      snprintf(label, sizeof(label), "FD%d:", i + 1);
+      draw_lamp(label, active ? IM_COL32(255, 32, 32, 255) : IM_COL32(64, 16, 16, 255));
     }
 
-    // Volume slider (right of FD1).
+    // CMT lamp: dim while a tape is inserted, bright while playing with motor on.
+    {
+      ImU32 fill = IM_COL32(64, 16, 16, 255);
+      if (vm && vm->is_frame_skippable()) {
+        fill = IM_COL32(255, 32, 32, 255);
+      } else if (vm && vm->is_tape_inserted(0)) {
+        fill = IM_COL32(128, 24, 24, 255);
+      }
+      ImGui::SameLine(0.0f, 10.0f);
+      draw_lamp("CMT:", fill);
+    }
+
+    // Volume slider (right of CMT).
     ImGui::SameLine(0.0f, 16.0f);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted((const char*)Lang::VolumeLabel);
@@ -3054,6 +3115,49 @@ bool OSD::draw_menu_contents() {
       }
     }
 
+    if (ImGui::BeginMenu("CMT")) {
+      menu_tree_open = true;
+      bool tape_inserted = (vm && vm->is_tape_inserted(0));
+      if (ImGui::MenuItem(Lang::Play)) { select_tape_file(true); }
+      if (ImGui::MenuItem(Lang::Rec)) { select_tape_file(false); }
+      if (ImGui::MenuItem(Lang::Eject, NULL, false, tape_inserted)) {
+        if (vm) vm->close_tape(0);
+        if (emu) emu->tape_status[0].path[0] = '\0';
+      }
+      ImGui::Separator(); // ----
+
+      if (tape_inserted && emu && emu->tape_status[0].path[0] != '\0') {
+        fs::path p(tchar_to_char(emu->tape_status[0].path));
+        std::string filename_utf8 = path_to_utf8(p.filename());
+        if (emu->tape_status[0].play) {
+          ImGui::TextDisabled("%s", filename_utf8.c_str());
+        } else {
+          ImGui::TextDisabled("%s %s", filename_utf8.c_str(), (const char*)Lang::Recording);
+        }
+      } else {
+        ImGui::TextDisabled("%s", (const char*)Lang::NoTapeInserted);
+      }
+
+      ImGui::Separator(); // ----
+      if (ImGui::BeginMenu(Lang::RecentTapes)) {
+        for (int i = 0; i < MAX_HISTORY; i++) {
+          if (config.recent_tape_path[0][i][0] == '\0') break;
+          const _TCHAR* r_path = config.recent_tape_path[0][i];
+
+          fs::path p(tchar_to_char(r_path));
+          std::string filename_utf8 = path_to_utf8(p.filename());
+          char label[512];
+          snprintf(label, sizeof(label), "%s##recent_tape_%d", filename_utf8.c_str(), i);
+
+          if (ImGui::MenuItem(label)) {
+            insert_tape(tchar_path_to_utf8(r_path), true);
+          }
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu(Lang::Device)) {
       menu_tree_open = true;
       if (ImGui::BeginMenu(Lang::Boot)) {
@@ -3061,6 +3165,14 @@ bool OSD::draw_menu_contents() {
         if (ImGui::MenuItem("N88-V1(H) mode", NULL, config.boot_mode == 1)) { config.boot_mode = 1; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N88-V2 mode", NULL, config.boot_mode == 2)) { config.boot_mode = 2; if(emu) emu->reset(); }
         if (ImGui::MenuItem("N mode", NULL, config.boot_mode == 3)) { config.boot_mode = 3; if(emu) emu->reset(); }
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu(Lang::BootDevice)) {
+        const uint32_t boot_mask = DIPSWITCH_BOOT_ROM | DIPSWITCH_BOOT_DISK;
+        const uint32_t boot_dev = config.dipswitch & boot_mask;
+        if (ImGui::MenuItem(Lang::BootDeviceAuto, NULL, boot_dev == 0)) { config.dipswitch &= ~boot_mask; if(emu) emu->reset(); }
+        if (ImGui::MenuItem(Lang::BootDeviceRom, NULL, boot_dev == DIPSWITCH_BOOT_ROM)) { config.dipswitch = (config.dipswitch & ~boot_mask) | DIPSWITCH_BOOT_ROM; if(emu) emu->reset(); }
+        if (ImGui::MenuItem(Lang::BootDeviceDisk, NULL, boot_dev == DIPSWITCH_BOOT_DISK)) { config.dipswitch = (config.dipswitch & ~boot_mask) | DIPSWITCH_BOOT_DISK; if(emu) emu->reset(); }
         ImGui::EndMenu();
       }
       if (ImGui::BeginMenu(Lang::CPU)) {
@@ -3089,6 +3201,14 @@ bool OSD::draw_menu_contents() {
         }
         ImGui::EndMenu();
       }
+#ifdef SUPPORT_QUASIS88_CMT
+      if (ImGui::BeginMenu(Lang::SpecialFeatures)) {
+        if (ImGui::MenuItem(Lang::QuasiCmt, NULL, (config.dipswitch & DIPSWITCH_QUASIS88_CMT) != 0)) {
+          config.dipswitch ^= DIPSWITCH_QUASIS88_CMT; if(vm) vm->update_config();
+        }
+        ImGui::EndMenu();
+      }
+#endif
       ImGui::EndMenu();
     }
 
@@ -3442,6 +3562,11 @@ void OSD::process_pending_dd() {
   std::string full_path = pending_dd_path;
   pending_dd_path.clear();
 
+  if (is_tape_file(full_path)) {
+    insert_tape(full_path, true);
+    return;
+  }
+
   // Update last_browser_path from the selected file's directory
   fs::path selected_dir = utf8_to_fs_path(full_path.c_str()).parent_path();
   std::string dir_utf8 = path_to_utf8(selected_dir);
@@ -3493,6 +3618,82 @@ void OSD::select_save_file(int drive, int type) {
     }
     osd->native_dialog_open = false;
   }, this, window, filters, 1, default_loc.c_str());
+}
+
+void OSD::select_tape_file(bool play) {
+  pending_tape_play = play;
+  static const SDL_DialogFileFilter play_filters[] = {
+    { "Tape Images", "cas;CAS;cmt;CMT;n80;N80;t88;T88" },
+    { "All Files", "*" },
+  };
+  static const SDL_DialogFileFilter rec_filters[] = {
+    { "Tape Images", "cas;CAS;cmt;CMT" },
+  };
+  std::string default_loc = tchar_path_to_utf8(config.last_browser_path);
+  if (default_loc.empty()) default_loc = get_home_directory();
+  native_dialog_open = true;
+  auto callback = [](void *userdata, const char * const *filelist, int filter) {
+    OSD *osd = static_cast<OSD*>(userdata);
+    if (filelist && filelist[0]) {
+      osd->pending_tape_path = filelist[0];
+    }
+    osd->native_dialog_open = false;
+  };
+  if (play) {
+    SDL_ShowOpenFileDialog(callback, this, window, play_filters, 2, default_loc.c_str(), false);
+  } else {
+    SDL_ShowSaveFileDialog(callback, this, window, rec_filters, 1, default_loc.c_str());
+  }
+}
+
+void OSD::process_pending_tape() {
+  if (pending_tape_path.empty()) return;
+
+  std::string full_path = pending_tape_path;
+  pending_tape_path.clear();
+
+  if (!pending_tape_play) {
+    // Ensure .cas/.cmt extension
+    std::string ext = path_to_utf8(utf8_to_fs_path(full_path.c_str()).extension());
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext != ".cas" && ext != ".cmt") {
+      full_path += ".cmt";
+    }
+  }
+  insert_tape(full_path, pending_tape_play);
+}
+
+void OSD::insert_tape(const std::string &full_path, bool play) {
+  if (!vm) return;
+
+  // Update last_browser_path from the selected file's directory
+  fs::path selected_dir = utf8_to_fs_path(full_path.c_str()).parent_path();
+  std::string dir_utf8 = path_to_utf8(selected_dir);
+  my_tcscpy_s(config.last_browser_path, _MAX_PATH, utf8_path_to_tchar(dir_utf8.c_str()));
+
+  // EMU::play_tape/rec_tape are not used because out_message() opens a
+  // modal message box; drive the VM directly and mirror EMU's tape status.
+  _TCHAR path[_MAX_PATH];
+  my_tcscpy_s(path, _MAX_PATH, utf8_path_to_tchar(full_path.c_str()));
+  vm->close_tape(0);
+  if (play) {
+    vm->play_tape(0, path);
+  } else {
+    vm->rec_tape(0, path);
+  }
+
+  if (emu) {
+    if (vm->is_tape_inserted(0)) {
+      my_tcscpy_s(emu->tape_status[0].path, _MAX_PATH, path);
+      emu->tape_status[0].play = play;
+    } else {
+      // .n80 is loaded into memory immediately, so nothing stays inserted
+      emu->tape_status[0].path[0] = _T('\0');
+    }
+  }
+  if (play) {
+    add_recent_tape(path);
+  }
 }
 
 void OSD::show_screenshot_dialog() {

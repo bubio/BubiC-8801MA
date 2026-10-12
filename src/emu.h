@@ -224,6 +224,7 @@ public:
   double get_frame_rate();
   int get_frame_interval();
   bool is_frame_skippable();
+  bool is_fast_forward();
   int run();
   void reset();
 #ifdef USE_SPECIAL_RESET
