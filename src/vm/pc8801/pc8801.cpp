@@ -692,6 +692,15 @@ DEVICE* VM::get_device(int id)
 void VM::reset()
 {
 	boot_mode = config.boot_mode;
+	
+	// boot device: ROM BASIC when FD1 is empty unless forced by the DIP switch
+	if(config.dipswitch & DIPSWITCH_BOOT_ROM) {
+		pc88->set_boot_from_rom(true);
+	} else if(config.dipswitch & DIPSWITCH_BOOT_DISK) {
+		pc88->set_boot_from_rom(false);
+	} else {
+		pc88->set_boot_from_rom(!is_floppy_disk_inserted(0));
+	}
 
 	// reset all devices
 	for(DEVICE* device = first_device; device; device = device->next_device) {

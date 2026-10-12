@@ -283,6 +283,10 @@ int EMU::get_frame_interval() {
 
 bool EMU::is_frame_skippable() { return vm->is_frame_skippable(); }
 
+// Run without waiting while uncapped, or while a tape is being loaded
+// (same as the original winmain's "full_speed || is_frame_skippable()").
+bool EMU::is_fast_forward() { return config.full_speed || vm->is_frame_skippable(); }
+
 int EMU::run() {
 #if defined(USE_DEBUGGER) && defined(USE_STATE)
   if (request_save_state >= 0 || request_load_state >= 0) {
@@ -353,8 +357,9 @@ int EMU::run() {
 
   uint64_t current_tick = SDL_GetTicks();
   uint64_t elapsed_time;
+  const bool fast_forward = is_fast_forward();
 
-  if (config.full_speed) {
+  if (fast_forward) {
     begin_tick = current_tick;
     total_frame_time = 0;
     elapsed_time = 0;
@@ -372,17 +377,17 @@ int EMU::run() {
   int ran_frames = 0;
   float speed_mul = (config.cpu_power < 0.25f) ? 1.0f : config.cpu_power;
   // Prioritize render cadence at x1; allow more catch-up only at high speed.
-  const int max_batches = config.full_speed ? 1 : ((speed_mul <= 1.0f) ? 1 : (int)(speed_mul * 4));
+  const int max_batches = fast_forward ? 1 : ((speed_mul <= 1.0f) ? 1 : (int)(speed_mul * 4));
 
   uint64_t ms_per_frame = 0;
-  if (!config.full_speed) {
+  if (!fast_forward) {
     double rate = vm->get_frame_rate();
     if (rate < 1.0) rate = 60.0;
     ms_per_frame = (uint64_t)((1000.0 * (1 << MS_SHIFT)) / rate);
   }
 
   auto advance_timing = [&](int frames) -> bool {
-    if (config.full_speed || frames <= 0) {
+    if (fast_forward || frames <= 0) {
       return true;
     }
     total_frame_time += ms_per_frame * (uint64_t)frames;
@@ -404,7 +409,7 @@ int EMU::run() {
   }
 
   // Catch up VM slices when still behind schedule.
-  while (config.full_speed || (int64_t)(elapsed_time - total_frame_time) >= 0) {
+  while (fast_forward || (int64_t)(elapsed_time - total_frame_time) >= 0) {
     if (ran_frames >= max_batches) {
       break;
     }
