@@ -71,7 +71,7 @@ set(SDL_SOURCES
 # Windows       : use official binary
 # =====================================
 
-set(BUBIC_SDL3_VERSION "3.4.16")
+set(BUBIC_SDL3_VERSION "3.4.18")
 
 if(WIN32)
     # Windows: use prebuilt SDL3 (DLL)
