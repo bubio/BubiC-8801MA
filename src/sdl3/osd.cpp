@@ -58,6 +58,8 @@ enum class Language {
 };
 
 static Language current_lang = Language::ENGLISH;
+static Language pending_lang = Language::ENGLISH;
+static bool language_change_pending = false;
 
 struct Msg {
   const char* en;
@@ -142,7 +144,7 @@ namespace Lang {
   static constexpr Msg MouseAsJoystick = {"Mouse as Joystick", "マウス擬似ジョイスティック", "鼠标模拟游戏杆", "마우스 조이스틱 모드", "Ratón como joystick", "Souris comme joystick"};
   static constexpr Msg MouseSensitivity = {"Mouse Sensitivity", "マウス感度", "鼠标灵敏度", "마우스 감도", "Sensibilidad del ratón", "Sensibilité de la souris"};
   static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique"};
-  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드に 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
+  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드에 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
   static constexpr Msg KeyboardLayout = {"Keyboard Layout", "キーボード配列", "键盘布局", "키보드 배열", "Distribución de teclado", "Disposition du clavier"};
   static constexpr Msg KeyboardLayoutUS = {"US", "US配列", "US布局", "US 배열", "US", "US"};
   static constexpr Msg KeyboardLayoutJIS = {"JIS", "JIS配列", "JIS布局", "JIS 배열", "JIS", "JIS"};
@@ -1667,6 +1669,12 @@ int OSD::draw_screen() {
       return 0;
     }
 
+    if (language_change_pending) {
+      current_lang = pending_lang;
+      language_change_pending = false;
+      load_font();
+    }
+
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -2771,7 +2779,13 @@ void OSD::load_font() {
 #elif __APPLE__
     "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
 #else
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/ipaexfont-gothic/ipaexg.ttf",
+    "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf",
+    "/usr/share/fonts/truetype/takao-gothic/TakaoGothic.ttf",
+    "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf",
+    "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf"
 #endif
   };
 
@@ -2787,6 +2801,7 @@ void OSD::load_font() {
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
 #else
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
 #endif
   };
@@ -2800,7 +2815,12 @@ void OSD::load_font() {
 #elif __APPLE__
     "/System/Library/Fonts/AppleSDGothicNeo.ttc",
 #else
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    "/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf",
+    "/usr/share/fonts/truetype/unfonts-core/UnDotum.ttf",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
 #endif
   };
 
@@ -3452,12 +3472,18 @@ bool OSD::draw_menu_contents() {
       }
       ImGui::Separator();
       if (ImGui::BeginMenu(Lang::LanguageLabel)) {
-        if (ImGui::MenuItem(Lang::LangEn, NULL, current_lang == Language::ENGLISH)) { if (current_lang != Language::ENGLISH) { current_lang = Language::ENGLISH; load_font(); } }
-        if (ImGui::MenuItem(Lang::LangJp, NULL, current_lang == Language::JAPANESE)) { if (current_lang != Language::JAPANESE) { current_lang = Language::JAPANESE; load_font(); } }
-        if (ImGui::MenuItem(Lang::LangZh, NULL, current_lang == Language::CHINESE)) { if (current_lang != Language::CHINESE) { current_lang = Language::CHINESE; load_font(); } }
-        if (ImGui::MenuItem(Lang::LangKo, NULL, current_lang == Language::KOREAN)) { if (current_lang != Language::KOREAN) { current_lang = Language::KOREAN; load_font(); } }
-        if (ImGui::MenuItem(Lang::LangEs, NULL, current_lang == Language::SPANISH)) { if (current_lang != Language::SPANISH) { current_lang = Language::SPANISH; load_font(); } }
-        if (ImGui::MenuItem(Lang::LangFr, NULL, current_lang == Language::FRENCH)) { if (current_lang != Language::FRENCH) { current_lang = Language::FRENCH; load_font(); } }
+        auto select_language = [&](const char *label, Language lang) {
+          if (ImGui::MenuItem(label, NULL, current_lang == lang) && current_lang != lang) {
+            pending_lang = lang;
+            language_change_pending = true;
+          }
+        };
+        select_language(Lang::LangEn, Language::ENGLISH);
+        select_language(Lang::LangJp, Language::JAPANESE);
+        select_language(Lang::LangZh, Language::CHINESE);
+        select_language(Lang::LangKo, Language::KOREAN);
+        select_language(Lang::LangEs, Language::SPANISH);
+        select_language(Lang::LangFr, Language::FRENCH);
         ImGui::EndMenu();
       }
       ImGui::EndMenu();
