@@ -4,3 +4,4 @@ imgui.ini
 build/
 build_x64/
 third_party/
+.claude/
