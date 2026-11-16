@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  SDL3_VERSION: 3.4.12
+  SDL3_VERSION: 3.4.20
 
 jobs:
   build-windows:
