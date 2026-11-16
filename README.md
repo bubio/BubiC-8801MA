@@ -78,7 +78,7 @@ A connected SDL-recognized gamepad is automatically translated into fixed keyboa
 This project is based on Takeda-san's [ePC-8801MA](https://takeda-toshiya.my.coocan.jp/common/index.html) (Common Source Project), January 1, 2026 edition.
 
 *   **ePC-8801MA**: GPL Version 2
-*   **SDL3**: LGPL (GNU Lesser General Public License)
+*   **SDL3**: zlib License
 *   **ImGui**: MIT License
 
 

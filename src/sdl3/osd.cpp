@@ -139,6 +139,8 @@ namespace Lang {
   static constexpr Msg Host = {"Host", "ホスト", "主机", "호스트", "Host", "Hôte", "Host", "Host"};
   static constexpr Msg AboutMenu = {"About %s...", "%sについて...", "关于%s...", "%s 정보...", "Acerca de %s...", "À propos de %s...", "Informazioni su %s...", "Über %s..."};
   static constexpr Msg AboutTitle = {"About %s", "%sについて", "关于%s", "%s 정보", "Acerca de %s", "À propos de %s", "Informazioni su %s", "Über %s"};
+  static constexpr Msg BasedOn = {"Based on ePC-8801MA by Takeda Toshiya", "武田俊也氏の ePC-8801MA をベースにしています", "基于武田俊也的 ePC-8801MA", "Takeda Toshiya의 ePC-8801MA를 기반으로 합니다", "Basado en ePC-8801MA de Takeda Toshiya", "Basé sur ePC-8801MA de Takeda Toshiya", "Basato su ePC-8801MA di Takeda Toshiya", "Basiert auf ePC-8801MA von Takeda Toshiya"};
+  static constexpr Msg LibrariesUsed = {"Libraries", "使用ライブラリ", "使用的库", "사용 라이브러리", "Bibliotecas", "Bibliothèques", "Librerie", "Bibliotheken"};
   static constexpr Msg VersionLabel = {"Version %s", "バージョン %s", "版本 %s", "버전 %s", "Versión %s", "Version %s", "Versione %s", "Version %s"};
   static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran", "Schermo", "Bildschirm"};
   static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Schermo intero", "Vollbild"};
@@ -2331,39 +2333,76 @@ void OSD::draw_about_dialog() {
     return;
   }
 
-  const float content_w = 260.0f;
-  ImGui::Dummy(ImVec2(content_w, 0));
-
-  ImGui::PushFont(NULL, ImGui::GetStyle().FontSizeBase * 1.6f);
-  {
-    float text_w = ImGui::CalcTextSize(APP_NAME_STRING).x;
-    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
-    ImGui::TextUnformatted(APP_NAME_STRING);
-  }
-  ImGui::PopFont();
-
-  ImGui::Spacing();
+  static const char *kOriginalUrl = "https://takeda-toshiya.my.coocan.jp/pc9801/index.html";
+  static const char *kImGuiUrl = "https://github.com/ocornut/imgui";
+  static const char *kSdlUrl = "https://www.libsdl.org";
 
   char version_text[64];
   snprintf(version_text, sizeof(version_text), (const char*)Lang::VersionLabel, APP_VERSION_STRING);
-  {
-    float text_w = ImGui::CalcTextSize(version_text).x;
-    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
-    ImGui::TextUnformatted(version_text);
-  }
+  char imgui_text[64];
+  snprintf(imgui_text, sizeof(imgui_text), "Dear ImGui %s", ImGui::GetVersion());
+  const int sdl_ver = SDL_GetVersion();
+  char sdl_text[64];
+  snprintf(sdl_text, sizeof(sdl_text), "SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(sdl_ver),
+           SDL_VERSIONNUM_MINOR(sdl_ver), SDL_VERSIONNUM_MICRO(sdl_ver));
 
-  {
-    float text_w = ImGui::CalcTextSize(APP_COPYRIGHT_STRING).x;
-    ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
-    ImGui::TextDisabled("%s", APP_COPYRIGHT_STRING);
+  // Widest line determines the dialog width so every line can be centered.
+  float content_w = 260.0f;
+  for (const char *t : {(const char *)Lang::BasedOn, kOriginalUrl, kImGuiUrl, kSdlUrl}) {
+    content_w = std::max(content_w, ImGui::CalcTextSize(t).x);
   }
+  ImGui::Dummy(ImVec2(content_w, 0));
+
+  const float pad_x = ImGui::GetStyle().WindowPadding.x;
+  auto center = [&](const char *text) {
+    ImGui::SetCursorPosX((content_w - ImGui::CalcTextSize(text).x) * 0.5f + pad_x);
+  };
+  auto centered_text = [&](const char *text) {
+    center(text);
+    ImGui::TextUnformatted(text);
+  };
+  auto centered_disabled = [&](const char *text) {
+    center(text);
+    ImGui::TextDisabled("%s", text);
+  };
+  auto centered_link = [&](const char *url) {
+    center(url);
+    ImGui::TextLinkOpenURL(url);
+  };
+
+  ImGui::PushFont(NULL, ImGui::GetStyle().FontSizeBase * 1.6f);
+  centered_text(APP_NAME_STRING);
+  ImGui::PopFont();
+
+  ImGui::Spacing();
+  centered_text(version_text);
+  centered_disabled(APP_COPYRIGHT_STRING);
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  centered_text(Lang::BasedOn);
+  centered_link(kOriginalUrl);
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  centered_disabled(Lang::LibrariesUsed);
+  ImGui::Spacing();
+  centered_text(imgui_text);
+  centered_link(kImGuiUrl);
+  ImGui::Spacing();
+  centered_text(sdl_text);
+  centered_link(kSdlUrl);
 
   ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
 
   float close_w = 100.0f;
-  ImGui::SetCursorPosX((content_w - close_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
+  ImGui::SetCursorPosX((content_w - close_w) * 0.5f + pad_x);
   if (ImGui::Button((const char *)Lang::CloseBtn, ImVec2(close_w, 0))) {
     open = false;
   }
