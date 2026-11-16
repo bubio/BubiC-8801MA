@@ -145,6 +145,13 @@ private:
   int applied_vsync_mode;
   int requested_window_w;
   int requested_window_h;
+  // Set while a switch to fullscreen is pending, so the intermediate moves
+  // of the transition aren't remembered as the windowed position.
+  bool window_pos_tracking_suspended;
+  bool window_position_supported() const;
+  bool is_window_position_on_screen(int x, int y, int w, int h) const;
+  void remember_window_position();
+  void request_fullscreen(bool enable);
   void select_save_file(int drive, int type);
   void select_file(int drive);
   void process_pending_insert();

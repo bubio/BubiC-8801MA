@@ -28,6 +28,24 @@ BOOL MyWritePrivateProfileBool(LPCTSTR lpAppName, LPCTSTR lpKeyName, bool Value,
 	return MyWritePrivateProfileString(lpAppName, lpKeyName, create_string(_T("%d"), Value ? 1 : 0), lpFileName);
 }
 
+// GetPrivateProfileInt() on Win32 clamps negative values to 0, but window
+// positions on a monitor left of / above the primary one are negative.
+static bool MyGetPrivateProfileSignedInt(LPCTSTR lpAppName, LPCTSTR lpKeyName, int *value, LPCTSTR lpFileName)
+{
+	_TCHAR buf[64] = {0};
+	MyGetPrivateProfileString(lpAppName, lpKeyName, _T(""), buf, 64, lpFileName);
+	if(buf[0] == _T('\0')) {
+		return false;
+	}
+	_TCHAR *end = NULL;
+	long v = _tcstol(buf, &end, 10);
+	if(end == buf) {
+		return false;
+	}
+	*value = (int)v;
+	return true;
+}
+
 bool MyGetPrivateProfileBool(LPCTSTR lpAppName, LPCTSTR lpKeyName, bool bDefault, LPCTSTR lpFileName)
 {
 	return (MyGetPrivateProfileInt(lpAppName, lpKeyName, bDefault ? 1 : 0, lpFileName) != 0);
@@ -339,6 +357,15 @@ void load_config(const _TCHAR* config_path)
 		config.window_mode = MyGetPrivateProfileInt(_T("Screen"), _T("WindowMode"), config.window_mode, config_path);
 		config.window_stretch_type = MyGetPrivateProfileInt(_T("Screen"), _T("WindowStretchType"), config.window_stretch_type, config_path);
 		config.fullscreen_stretch_type = MyGetPrivateProfileInt(_T("Screen"), _T("FullScreenStretchType"), config.fullscreen_stretch_type, config_path);
+		{
+			int x, y;
+			if(MyGetPrivateProfileSignedInt(_T("Screen"), _T("WindowPosX"), &x, config_path) &&
+			   MyGetPrivateProfileSignedInt(_T("Screen"), _T("WindowPosY"), &y, config_path)) {
+				config.window_pos_x = x;
+				config.window_pos_y = y;
+				config.window_pos_valid = true;
+			}
+		}
 //		#ifdef USE_SCREEN_ROTATE
 			config.rotate_type = MyGetPrivateProfileInt(_T("Screen"), _T("RotateType"), config.rotate_type, config_path);
 //		#endif
@@ -608,6 +635,10 @@ void save_config(const _TCHAR* config_path)
 		MyWritePrivateProfileInt(_T("Screen"), _T("WindowMode"), config.window_mode, config_path);
 		MyWritePrivateProfileInt(_T("Screen"), _T("WindowStretchType"), config.window_stretch_type, config_path);
 		MyWritePrivateProfileInt(_T("Screen"), _T("FullScreenStretchType"), config.fullscreen_stretch_type, config_path);
+		if(config.window_pos_valid) {
+			MyWritePrivateProfileInt(_T("Screen"), _T("WindowPosX"), config.window_pos_x, config_path);
+			MyWritePrivateProfileInt(_T("Screen"), _T("WindowPosY"), config.window_pos_y, config_path);
+		}
 //		#ifdef USE_SCREEN_ROTATE
 			MyWritePrivateProfileInt(_T("Screen"), _T("RotateType"), config.rotate_type, config_path);
 //		#endif

@@ -459,6 +459,7 @@ OSD::OSD() {
   applied_vsync_mode = -1;
   requested_window_w = 0;
   requested_window_h = 0;
+  window_pos_tracking_suspended = false;
   last_ui_interaction_tick = SDL_GetTicks();
   fd1_path[0] = _T('\0');
   fd2_path[0] = _T('\0');
@@ -644,13 +645,30 @@ void OSD::initialize(int rate, int samples) {
 
   OSD_LOG("Creating window %dx%d...", window_width, window_height);
   std::string title = APP_NAME_STRING " v" APP_VERSION_STRING;
-  window = SDL_CreateWindow(title.c_str(), window_width, window_height,
-                            SDL_WINDOW_HIGH_PIXEL_DENSITY);
+  SDL_PropertiesID window_props = SDL_CreateProperties();
+  SDL_SetStringProperty(window_props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title.c_str());
+  SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, window_width);
+  SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, window_height);
+  SDL_SetBooleanProperty(window_props, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
+  if (window_position_supported() && config.window_pos_valid &&
+      is_window_position_on_screen(config.window_pos_x, config.window_pos_y,
+                                   window_width, window_height)) {
+    OSD_LOG("Restoring window position %d,%d", config.window_pos_x, config.window_pos_y);
+    SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_X_NUMBER, config.window_pos_x);
+    SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, config.window_pos_y);
+  } else {
+    // Unknown, or on a monitor that's no longer connected.
+    SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED);
+    SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED);
+  }
+  window = SDL_CreateWindowWithProperties(window_props);
+  SDL_DestroyProperties(window_props);
   if (!window) {
     OSD_LOG("SDL_CreateWindow FAILED: %s", SDL_GetError());
     return;
   }
   OSD_LOG("Window created: %p", (void*)window);
+  remember_window_position();
 
   OSD_LOG("Creating renderer...");
   renderer = SDL_CreateRenderer(window, NULL);
@@ -931,6 +949,7 @@ void OSD::update_input() {
   ImGuiIO &io = ImGui::GetIO();
   while (SDL_PollEvent(&event)) {
     if (event.type == SDL_EVENT_QUIT) {
+      remember_window_position();
       terminated = true;
       continue;
     }
@@ -984,6 +1003,12 @@ void OSD::update_input() {
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
       disable_mouse();
       clear_all_pressed_keys();
+    }
+    if (event.type == SDL_EVENT_WINDOW_MOVED) {
+      remember_window_position();
+    }
+    if (event.type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN) {
+      window_pos_tracking_suspended = false;
     }
     if (event.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN) {
       // Start the inactivity period after the asynchronous fullscreen
@@ -1579,6 +1604,60 @@ void OSD::set_vm_screen_size(int screen_width, int screen_height,
                                        SDL_TEXTUREACCESS_STREAMING, screen_width,
                                        screen_height);
   }
+}
+
+bool OSD::window_position_supported() const {
+  // Wayland clients can neither query nor choose their global position.
+  const char *driver = SDL_GetCurrentVideoDriver();
+  return !(driver && SDL_strcmp(driver, "wayland") == 0);
+}
+
+bool OSD::is_window_position_on_screen(int x, int y, int w, int h) const {
+  // Require the top edge (where the title bar is) and a reasonable part of
+  // the window to fall inside some display's usable area, so a position saved
+  // on a since-disconnected monitor doesn't leave the window unreachable.
+  const int min_visible_w = SDL_min(w, 100);
+  const int min_visible_h = SDL_min(h, 50);
+  int count = 0;
+  SDL_DisplayID *displays = SDL_GetDisplays(&count);
+  if (!displays) return false;
+  bool visible = false;
+  for (int i = 0; i < count && !visible; i++) {
+    SDL_Rect bounds;
+    if (!SDL_GetDisplayUsableBounds(displays[i], &bounds)) continue;
+    const SDL_Rect win_rect = { x, y, w, h };
+    SDL_Rect overlap;
+    if (y >= bounds.y && y < bounds.y + bounds.h &&
+        SDL_GetRectIntersection(&win_rect, &bounds, &overlap) &&
+        overlap.w >= min_visible_w && overlap.h >= min_visible_h) {
+      visible = true;
+    }
+  }
+  SDL_free(displays);
+  return visible;
+}
+
+void OSD::remember_window_position() {
+  if (!window || !window_position_supported() || window_pos_tracking_suspended)
+    return;
+  const SDL_WindowFlags flags = SDL_GetWindowFlags(window);
+  if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MINIMIZED | SDL_WINDOW_MAXIMIZED))
+    return;
+  int x, y;
+  if (!SDL_GetWindowPosition(window, &x, &y)) return;
+  config.window_pos_x = x;
+  config.window_pos_y = y;
+  config.window_pos_valid = true;
+}
+
+void OSD::request_fullscreen(bool enable) {
+  if (!window) return;
+  if (enable) {
+    remember_window_position();
+    window_pos_tracking_suspended = true;
+  }
+  if (!SDL_SetWindowFullscreen(window, enable))
+    window_pos_tracking_suspended = false;
 }
 
 void OSD::set_host_window_size(int width, int height, bool window_mode) {
@@ -3378,8 +3457,7 @@ bool OSD::draw_menu_contents() {
       ImGui::Separator();
       if (ImGui::BeginMenu(Lang::Screen)) {
         if (ImGui::MenuItem(Lang::Fullscreen, NULL, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN))) {
-          if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) SDL_SetWindowFullscreen(window, false);
-          else SDL_SetWindowFullscreen(window, true);
+          request_fullscreen(!(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN));
         }
         ImGui::Separator();
         if (ImGui::MenuItem("x1.0", NULL, config.window_scale_idx == 0)) { config.window_scale_idx = 0; update_window_scale(); }
