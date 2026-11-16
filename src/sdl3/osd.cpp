@@ -467,6 +467,7 @@ OSD::OSD() {
   vm_screen_buffer = NULL;
   vm_screen_width = 0;
   vm_screen_height = 0;
+  screen_skip_line = false;
   vm_screen_rect = {0, 0, 0, 0};
   vm_screen_rect_valid = false;
   mouse_icon_texture = NULL;
@@ -2115,27 +2116,78 @@ void OSD::refresh_state_thumbnails() {
   }
 }
 
+namespace {
+struct ScaleTap {
+  int index;
+  float weight;
+};
+
+// For each destination pixel, lists the source pixels it covers and the
+// share of its area each one takes (an area-average, or box, filter).
+std::vector<std::vector<ScaleTap>> build_area_taps(int src_len, int dst_len) {
+  std::vector<std::vector<ScaleTap>> taps(dst_len);
+  const double scale = (double)src_len / dst_len;
+  for (int d = 0; d < dst_len; d++) {
+    const double s0 = d * scale;
+    const double s1 = (d + 1) * scale;
+    const int last = (std::min)(src_len, (int)std::ceil(s1));
+    for (int i = (int)std::floor(s0); i < last; i++) {
+      const double overlap = (std::min)(s1, (double)(i + 1)) - (std::max)(s0, (double)i);
+      if (overlap > 0.0) {
+        taps[d].push_back({i, (float)(overlap / scale)});
+      }
+    }
+  }
+  return taps;
+}
+} // namespace
+
 void OSD::save_state_thumbnail_for_slot(int slot) {
   if (!emu || !vm_screen_buffer || vm_screen_width <= 0 || vm_screen_height <= 0) return;
   _TCHAR state_path_copy[_MAX_PATH];
   my_tcscpy_s(state_path_copy, _MAX_PATH, emu->state_file_path(slot));
   std::string thumb = thumbnail_path_for_state(state_path_copy);
 
-  SDL_Surface *src = SDL_CreateSurfaceFrom(
-      vm_screen_width, vm_screen_height, SDL_PIXELFORMAT_XRGB8888,
-      vm_screen_buffer, vm_screen_width * (int)sizeof(scrntype_t));
-  if (!src) return;
+  // 200-line modes draw each line twice, and the odd copy holds the
+  // scanline. Sampling only the even lines keeps scanlines out of the
+  // thumbnail. 400-line mode uses every line, so it is left as is.
+  const bool even_lines_only = screen_skip_line && vm_screen_height >= 2;
+  const int src_w = vm_screen_width;
+  const int src_h = even_lines_only ? vm_screen_height / 2 : vm_screen_height;
+  const int src_stride = even_lines_only ? vm_screen_width * 2 : vm_screen_width;
 
-  const int tw = 256;
-  const int th = 160;
+  // Half of the 640x400 screen, so a PC-88 frame shrinks by exactly 2:1.
+  // Bilinear scaling to a non-integer ratio skips source pixels and turns
+  // dithered patterns into vertical stripes, so average whole areas instead.
+  const int tw = 320;
+  const int th = 200;
   SDL_Surface *dst = SDL_CreateSurface(tw, th, SDL_PIXELFORMAT_XRGB8888);
-  if (!dst) { SDL_DestroySurface(src); return; }
-  SDL_Rect src_rect = { 0, 0, vm_screen_width, vm_screen_height };
-  SDL_Rect dst_rect = { 0, 0, tw, th };
-  SDL_BlitSurfaceScaled(src, &src_rect, dst, &dst_rect, SDL_SCALEMODE_LINEAR);
+  if (!dst) return;
+
+  const auto x_taps = build_area_taps(src_w, tw);
+  const auto y_taps = build_area_taps(src_h, th);
+  for (int dy = 0; dy < th; dy++) {
+    Uint32 *out = (Uint32 *)((Uint8 *)dst->pixels + dy * dst->pitch);
+    for (int dx = 0; dx < tw; dx++) {
+      float r = 0.0f, g = 0.0f, b = 0.0f;
+      for (const ScaleTap &ty : y_taps[dy]) {
+        const scrntype_t *row = vm_screen_buffer + ty.index * src_stride;
+        for (const ScaleTap &tx : x_taps[dx]) {
+          const Uint32 c = (Uint32)row[tx.index];
+          const float w = ty.weight * tx.weight;
+          r += w * (float)((c >> 16) & 0xff);
+          g += w * (float)((c >> 8) & 0xff);
+          b += w * (float)(c & 0xff);
+        }
+      }
+      const Uint32 ri = (Uint32)(std::min)(255.0f, r + 0.5f);
+      const Uint32 gi = (Uint32)(std::min)(255.0f, g + 0.5f);
+      const Uint32 bi = (Uint32)(std::min)(255.0f, b + 0.5f);
+      out[dx] = (ri << 16) | (gi << 8) | bi;
+    }
+  }
   SDL_SaveBMP(dst, thumb.c_str());
   SDL_DestroySurface(dst);
-  SDL_DestroySurface(src);
 }
 
 void OSD::open_state_dialog() {
