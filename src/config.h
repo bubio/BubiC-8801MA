@@ -174,6 +174,10 @@ typedef struct {
 	int window_mode;
 	int window_stretch_type;
 	int fullscreen_stretch_type;
+	// Last windowed-mode position (client area, SDL global coordinates).
+	// Only meaningful when window_pos_valid is true.
+	bool window_pos_valid;
+	int window_pos_x, window_pos_y;
 //	#if defined(USE_SHARED_DLL) || defined(USE_SCREEN_ROTATE)
 		int rotate_type;
 //	#endif
