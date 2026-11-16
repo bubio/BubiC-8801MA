@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -1934,8 +1935,10 @@ void OSD::draw_status_bar() {
 
       const float lamp_size = 10.0f;
       ImVec2 cursor = ImGui::GetCursorScreenPos();
-      float lamp_y = text_center_y - (lamp_size * 0.5f);
-      ImVec2 lamp_min(cursor.x, lamp_y);
+      // ImGui 1.93+ anti-aliases rect edges at non-integer coordinates,
+      // so snap to whole pixels to keep the lamp crisp.
+      float lamp_y = floorf(text_center_y - (lamp_size * 0.5f));
+      ImVec2 lamp_min(floorf(cursor.x), lamp_y);
       ImVec2 lamp_max(cursor.x + lamp_size, lamp_y + lamp_size);
 
       ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -2216,8 +2219,10 @@ void OSD::draw_state_dialog() {
     }
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    float thumb_x = row_pos.x + 4.0f;
-    float thumb_y = row_pos.y + 3.0f;
+    // ImGui 1.93+ anti-aliases rect edges at non-integer coordinates,
+    // so keep all overlay rects on whole pixels.
+    float thumb_x = floorf(row_pos.x + 4.0f);
+    float thumb_y = floorf(row_pos.y + 3.0f);
     ImVec2 tmin(thumb_x, thumb_y);
     ImVec2 tmax(thumb_x + thumb_w, thumb_y + thumb_h);
     if (state_thumb_tex[i]) {
@@ -2233,7 +2238,7 @@ void OSD::draw_state_dialog() {
     ImVec2 ls = ImGui::CalcTextSize(slot_label);
     dl->AddRectFilled(
         ImVec2(tmin.x, tmin.y),
-        ImVec2(tmin.x + ls.x + 12.0f, tmin.y + ls.y + 6.0f),
+        ImVec2(tmin.x + ceilf(ls.x) + 12.0f, tmin.y + ceilf(ls.y) + 6.0f),
         IM_COL32(0, 0, 0, 180));
     dl->AddText(ImVec2(tmin.x + 6.0f, tmin.y + 3.0f),
                 IM_COL32(255, 255, 255, 255), slot_label);
@@ -2241,7 +2246,7 @@ void OSD::draw_state_dialog() {
     // Datetime overlay (bottom strip)
     const char *time_text = slot_exists[i] ? slot_time[i] : (const char *)Lang::NoData;
     ImVec2 ts = ImGui::CalcTextSize(time_text);
-    float strip_h = ts.y + 6.0f;
+    float strip_h = ceilf(ts.y) + 6.0f;
     dl->AddRectFilled(
         ImVec2(tmin.x, tmax.y - strip_h),
         ImVec2(tmax.x, tmax.y),
@@ -2329,13 +2334,13 @@ void OSD::draw_about_dialog() {
   const float content_w = 260.0f;
   ImGui::Dummy(ImVec2(content_w, 0));
 
-  ImGui::SetWindowFontScale(1.6f);
+  ImGui::PushFont(NULL, ImGui::GetStyle().FontSizeBase * 1.6f);
   {
     float text_w = ImGui::CalcTextSize(APP_NAME_STRING).x;
     ImGui::SetCursorPosX((content_w - text_w) * 0.5f + ImGui::GetStyle().WindowPadding.x);
     ImGui::TextUnformatted(APP_NAME_STRING);
   }
-  ImGui::SetWindowFontScale(1.0f);
+  ImGui::PopFont();
 
   ImGui::Spacing();
 
