@@ -2349,7 +2349,7 @@ void OSD::draw_about_dialog() {
   // Widest line determines the dialog width so every line can be centered.
   float content_w = 260.0f;
   for (const char *t : {(const char *)Lang::BasedOn, kOriginalUrl, kImGuiUrl, kSdlUrl}) {
-    content_w = std::max(content_w, ImGui::CalcTextSize(t).x);
+    content_w = (std::max)(content_w, ImGui::CalcTextSize(t).x);
   }
   ImGui::Dummy(ImVec2(content_w, 0));
 
