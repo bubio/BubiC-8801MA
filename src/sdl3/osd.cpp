@@ -54,7 +54,9 @@ enum class Language {
   CHINESE,
   KOREAN,
   SPANISH,
-  FRENCH
+  FRENCH,
+  ITALIAN,
+  GERMAN
 };
 
 static Language current_lang = Language::ENGLISH;
@@ -68,6 +70,8 @@ struct Msg {
   const char* ko;
   const char* es;
   const char* fr;
+  const char* it;
+  const char* de;
   operator const char*() const {
     switch (current_lang) {
       case Language::JAPANESE: return jp;
@@ -75,102 +79,107 @@ struct Msg {
       case Language::KOREAN:   return ko;
       case Language::SPANISH:  return es;
       case Language::FRENCH:   return fr;
+      case Language::ITALIAN:  return it;
+      case Language::GERMAN:   return de;
       default:                 return en;
     }
   }
 };
 
 namespace Lang {
-  static constexpr Msg Control = {"Control", "コントロール", "控制", "컨트롤", "Control", "Contrôle"};
-  static constexpr Msg Reset = {"Reset", "リセット", "重置", "초기화", "Reiniciar", "Réinitialiser"};
-  static constexpr Msg FullSpeed = {"Uncapped", "リミッター解除", "解除限制", "제한 해제", "Sin límite", "Sans limite"};
-  static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換", "罗马字转假名", "로마자 카나 변환", "Romaji a Kana", "Romaji vers Kana"};
-  static constexpr Msg System = {"System", "システム", "系统", "시스템", "Sistema", "Système"};
-  static constexpr Msg ResetOnDD = {"Reset on D&D", "D&D時にリセット", "拖放时重置", "D&D시 초기화", "Restablecer en D&D", "Réinitialiser sur D&D"};
-  static constexpr Msg SaveState = {"Save State", "状態保存", "保存存档", "상태 저장", "Guardar estado", "Sauvegarder l'état"};
-  static constexpr Msg LoadState = {"Load State", "状態復元", "读取存档", "상태 불러오기", "Cargar estado", "Charger l'état"};
-  static constexpr Msg NoData = {"(No Data)", "(データなし)", "(无数据)", "(데이터 없음)", "(Sin datos)", "(Aucune donnée)"};
-  static constexpr Msg StateDialogMenu = {"Save / Load State...", "状態保存・復元...", "保存／读取存档...", "상태 저장 · 불러오기...", "Guardar / cargar estado...", "Sauvegarder / charger l'état..."};
-  static constexpr Msg StateDialogTitle = {"Save / Load State", "状態保存・復元", "保存／读取存档", "상태 저장 · 불러오기", "Guardar / cargar estado", "Sauvegarder / charger l'état"};
-  static constexpr Msg Slot = {"Slot %d", "スロット %d", "槽 %d", "슬롯 %d", "Ranura %d", "Emplacement %d"};
-  static constexpr Msg SaveBtn = {"Save", "保存", "保存", "저장", "Guardar", "Sauvegarder"};
-  static constexpr Msg LoadBtn = {"Load", "復元", "读取", "불러오기", "Cargar", "Charger"};
-  static constexpr Msg CloseBtn = {"Close", "閉じる", "关闭", "닫기", "Cerrar", "Fermer"};
-  static constexpr Msg DeleteBtn = {"Delete", "削除", "删除", "삭제", "Eliminar", "Supprimer"};
-  static constexpr Msg Exit = {"Exit", "終了", "退出", "종료", "Salir", "Quitter"};
-  static constexpr Msg Insert = {"Insert", "挿入", "插入", "삽입", "Insertar", "Insérer"};
-  static constexpr Msg Eject = {"Eject", "取り出し", "弹出", "꺼내기", "Expulsar", "Éjecter"};
-  static constexpr Msg InsertBlank2D = {"Insert Blank 2D Disk", "空の2Dディスクを挿入", "插入空白2D磁盘", "빈 2D 디스크 삽입", "Insertar disco 2D en blanco", "Insérer un disque 2D vierge"};
-  static constexpr Msg InsertBlank2HD = {"Insert Blank 2HD Disk", "空の2HDディスクを挿入", "插入空白2HD磁盘", "빈 2HD 디스크 삽입", "Insertar disco 2HD en blanco", "Insérer un disque 2HD vierge"};
-  static constexpr Msg WriteProtected = {"Write Protected", "書き込み禁止", "写保护", "쓰기 금지", "Protección contra escritura", "Protégé en écriture"};
-  static constexpr Msg CorrectTiming = {"Correct Timing", "正確なタイミング", "精确时序", "정확한 타이밍", "Temporización correcta", "Synchronisation précise"};
-  static constexpr Msg IgnoreCRC = {"Ignore CRC Errors", "CRCエラーを無視", "忽略CRC错误", "CRC 오류 무시", "Ignorar errores CRC", "Ignorer les erreurs CRC"};
-  static constexpr Msg ImageN = {"Image %d", "イメージ %d", "镜像 %d", "이미지 %d", "Imagen %d", "Image %d"};
-  static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)", "(未插入磁盘)", "(디스크 없음)", "(Sin disco)", "(Aucun disque)"};
-  static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク", "最近使用的磁盘", "최근 사용한 디스크", "Discos recientes", "Disques récents"};
-  static constexpr Msg Play = {"Play...", "再生...", "播放...", "재생...", "Reproducir...", "Lecture..."};
-  static constexpr Msg Rec = {"Rec...", "録音...", "录音...", "녹음...", "Grabar...", "Enregistrer..."};
-  static constexpr Msg Recording = {"(Rec)", "(録音中)", "(录音中)", "(녹음 중)", "(Grabando)", "(Enregistrement)"};
-  static constexpr Msg NoTapeInserted = {"(No tape inserted)", "(未挿入)", "(未插入磁带)", "(테이프 없음)", "(Sin cinta)", "(Aucune cassette)"};
-  static constexpr Msg RecentTapes = {"Recent Tapes", "最近使ったテープ", "最近使用的磁带", "최근 사용한 테이프", "Cintas recientes", "Cassettes récentes"};
-  static constexpr Msg SpecialFeatures = {"Special Features", "特殊機能", "特殊功能", "특수 기능", "Funciones especiales", "Fonctions spéciales"};
-  static constexpr Msg QuasiCmt = {"QUASI88 Pseudo CMT", "QUASI88 擬似CMT", "QUASI88 模拟CMT", "QUASI88 의사 CMT", "CMT simulado de QUASI88", "CMT simulé QUASI88"};
-  static constexpr Msg BootDevice = {"Boot Device", "起動デバイス", "启动设备", "부팅 장치", "Dispositivo de arranque", "Périphérique de démarrage"};
-  static constexpr Msg BootDeviceAuto = {"Auto (ROM if FD1 is empty)", "自動 (FD1が空ならROM)", "自动 (FD1为空时ROM)", "자동 (FD1이 비면 ROM)", "Automático (ROM si FD1 vacía)", "Auto (ROM si FD1 vide)"};
-  static constexpr Msg BootDeviceRom = {"ROM", "ROM", "ROM", "ROM", "ROM", "ROM"};
-  static constexpr Msg BootDeviceDisk = {"Disk", "ディスク", "磁盘", "디스크", "Disco", "Disque"};
-  static constexpr Msg Device = {"Device", "デバイス", "设备", "장치", "Dispositivo", "Appareil"};
-  static constexpr Msg Boot = {"Boot", "起動モード", "启动模式", "부팅 모드", "Modo de inicio", "Mode de démarrage"};
-  static constexpr Msg CPU = {"CPU", "CPU", "处理器", "CPU", "CPU", "Processeur"};
-  static constexpr Msg Sound = {"Sound", "サウンド", "声音", "사운드", "Sonido", "Son"};
-  static constexpr Msg Display = {"Display", "表示", "显示", "디ス플레이", "Pantalla", "Affichage"};
-  static constexpr Msg HighResolution = {"High Resolution", "高解像度", "高分辨率", "고해상度", "Alta resolución", "Haute résolution"};
-  static constexpr Msg Standard = {"Standard", "標準", "标准", "표준", "Estándar", "Standard"};
-  static constexpr Msg ScanlineAuto = {"Set Scanline Automatically", "スキャンライン自動設定", "自动设置扫描线", "스캔라인 자동 설정", "Ajustar líneas de escaneo automáticamente", "Régler les lignes de balayage automatiquement"};
-  static constexpr Msg Scanline = {"Scanline", "スキャンライン", "扫描线", "スキャンライン", "Líneas de escaneo", "Lignes de balayage"};
-  static constexpr Msg IgnorePalette = {"Ignore Palette Changed", "パレット変更を無視", "忽略调色板更改", "팔레트 변경 무시", "Ignorar cambios de paleta", "Ignorer les changements de palette"};
-  static constexpr Msg Host = {"Host", "ホスト", "主机", "호스트", "Host", "Hôte"};
-  static constexpr Msg AboutMenu = {"About %s...", "%sについて...", "关于%s...", "%s 정보...", "Acerca de %s...", "À propos de %s..."};
-  static constexpr Msg AboutTitle = {"About %s", "%sについて", "关于%s", "%s 정보", "Acerca de %s", "À propos de %s"};
-  static constexpr Msg VersionLabel = {"Version %s", "バージョン %s", "版本 %s", "버전 %s", "Versión %s", "Version %s"};
-  static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran"};
-  static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran"};
-  static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存...", "保存截图...", "스크린샷 저장...", "Guardar captura de pantalla...", "Enregistrer une capture d'écran..."};
-  static constexpr Msg Input = {"Input", "入力", "输入", "입력", "Entrada", "Entrée"};
-  static constexpr Msg EnableMouseInput = {"Enable Mouse Input", "マウス入力を有効化", "启用鼠标输入", "마우스 입력 사용", "Activar entrada de ratón", "Activer l'entrée souris"};
-  static constexpr Msg ReleaseMouseCaptureHint = {"F12 releases mouse capture", "F12でマウスキャプチャを解放", "按F12释放鼠标捕获", "F12로 마우스 캡처 해제", "F12 libera la captura del ratón", "F12 libère la capture de la souris"};
-  static constexpr Msg MouseMode = {"Mouse Mode", "マウス方式", "鼠标模式", "마우스 모드", "Modo de ratón", "Mode souris"};
-  static constexpr Msg Mouse = {"Bus Mouse (PC-8872)", "バスマウス (PC-8872)", "总线鼠标 (PC-8872)", "버스 마우스 (PC-8872)", "Ratón de bus (PC-8872)", "Souris bus (PC-8872)"};
-  static constexpr Msg MouseAsJoystick = {"Mouse as Joystick", "マウス擬似ジョイスティック", "鼠标模拟游戏杆", "마우스 조이스틱 모드", "Ratón como joystick", "Souris comme joystick"};
-  static constexpr Msg MouseSensitivity = {"Mouse Sensitivity", "マウス感度", "鼠标灵敏度", "마우스 감도", "Sensibilidad del ratón", "Sensibilité de la souris"};
-  static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique"};
-  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드에 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique"};
-  static constexpr Msg KeyboardLayout = {"Keyboard Layout", "キーボード配列", "键盘布局", "키보드 배열", "Distribución de teclado", "Disposition du clavier"};
-  static constexpr Msg KeyboardLayoutUS = {"US", "US配列", "US布局", "US 배열", "US", "US"};
-  static constexpr Msg KeyboardLayoutJIS = {"JIS", "JIS配列", "JIS布局", "JIS 배열", "JIS", "JIS"};
-  static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数", "采样率", "샘플링 주파수", "Frecuencia de muestreo", "Fréquence d'échantillonnage"};
-  static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ", "音频延迟", "오디오 지연", "Latencia de audio", "Latence audio"};
-  static constexpr Msg MuteFM = {"Mute FM", "FM消音", "FM静音", "FM 음소거", "Silenciar FM", "Couper le son FM"};
-  static constexpr Msg MuteSSG = {"Mute SSG", "SSG消音", "SSG静音", "SSG 음소거", "Silenciar SSG", "Couper le son SSG"};
-  static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音", "ADPCM静音", "ADPCM 음소거", "Silenciar ADPCM", "Couper le son ADPCM"};
-  static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音", "节奏音静音", "리듬 음소거", "Silenciar ritmo", "Couper le son du rythme"};
-  static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ...", "导出内存...", "메모리 덤프...", "Volcar memoria...", "Vider la mémoire..."};
-  static constexpr Msg Debug = {"Debug", "デバッグ", "调试", "디버그", "Depuración", "Débogage"};
-  static constexpr Msg DebugMainCpu = {"Debug Main CPU", "メインCPUをデバッグ", "调试主CPU", "메인 CPU 디버그", "Depurar CPU principal", "Déboguer le CPU principal"};
-  static constexpr Msg DebugSubCpu = {"Debug Sub CPU", "サブCPUをデバッグ", "调试子CPU", "서브 CPU 디버그", "Depurar CPU secundaria", "Déboguer le CPU secondaire"};
-  static constexpr Msg CloseDebugger = {"Close Debugger", "デバッガを閉じる", "关闭调试器", "디버거 닫기", "Cerrar depurador", "Fermer le débogueur"};
-  static constexpr Msg LanguageLabel = {"Language", "言語", "语言", "언어", "Idioma", "Langue"};
-  static constexpr Msg LangEn = {"English", "英語", "英语", "영어", "Inglés", "Anglais"};
-  static constexpr Msg LangJp = {"Japanese", "日本語", "中文(日语)", "일본어", "Japonés", "Japonais"};
-  static constexpr Msg LangZh = {"Chinese (Simplified)", "中国語 (簡体字)", "简体中文", "중국어 (간체)", "Chino (Simplificado)", "Chinois (Simplifié)"};
-  static constexpr Msg LangKo = {"Korean", "韓国語", "韩语", "한국어", "Coreano", "Coréen"};
-  static constexpr Msg LangEs = {"Spanish", "スペイン語", "西班牙语", "스페인어", "Español", "Espagnol"};
-  static constexpr Msg LangFr = {"French", "フランス語", "法语", "프랑스어", "Francés", "Français"};
-  static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g"};
-  static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d"};
-  static constexpr Msg VolumeLabel = {"Vol:", "音量:", "音量:", "음량:", "Vol:", "Vol:"};
-  static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f"};
-  static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f"};
+  static constexpr Msg Control = {"Control", "コントロール", "控制", "컨트롤", "Control", "Contrôle", "Controllo", "Steuerung"};
+  static constexpr Msg Reset = {"Reset", "リセット", "重置", "초기화", "Reiniciar", "Réinitialiser", "Reset", "Zurücksetzen"};
+  static constexpr Msg FullSpeed = {"Uncapped", "リミッター解除", "解除限制", "제한 해제", "Sin límite", "Sans limite", "Senza limite", "Unbegrenzt"};
+  static constexpr Msg RomajiToKana = {"Romaji to Kana", "ローマ字かな変換", "罗马字转假名", "로마자 카나 변환", "Romaji a Kana", "Romaji vers Kana", "Romaji in Kana", "Romaji zu Kana"};
+  static constexpr Msg System = {"System", "システム", "系统", "시스템", "Sistema", "Système", "Sistema", "System"};
+  static constexpr Msg ResetOnDD = {"Reset on D&D", "D&D時にリセット", "拖放时重置", "D&D시 초기화", "Reiniciar al arrastrar y soltar", "Réinitialiser au glisser-déposer", "Reset al trascinamento", "Zurücksetzen bei Drag & Drop"};
+  static constexpr Msg SaveState = {"Save State", "状態保存", "保存存档", "상태 저장", "Guardar estado", "Sauvegarder l'état", "Salva stato", "Zustand speichern"};
+  static constexpr Msg LoadState = {"Load State", "状態復元", "读取存档", "상태 불러오기", "Cargar estado", "Charger l'état", "Carica stato", "Zustand laden"};
+  static constexpr Msg NoData = {"(No Data)", "(データなし)", "(无数据)", "(데이터 없음)", "(Sin datos)", "(Aucune donnée)", "(Nessun dato)", "(Keine Daten)"};
+  static constexpr Msg StateDialogMenu = {"Save / Load State...", "状態保存・復元...", "保存／读取存档...", "상태 저장 · 불러오기...", "Guardar / cargar estado...", "Sauvegarder / charger l'état...", "Salva / carica stato...", "Zustand speichern / laden..."};
+  static constexpr Msg StateDialogTitle = {"Save / Load State", "状態保存・復元", "保存／读取存档", "상태 저장 · 불러오기", "Guardar / cargar estado", "Sauvegarder / charger l'état", "Salva / carica stato", "Zustand speichern / laden"};
+  static constexpr Msg Slot = {"Slot %d", "スロット %d", "槽 %d", "슬롯 %d", "Ranura %d", "Emplacement %d", "Slot %d", "Slot %d"};
+  static constexpr Msg SaveBtn = {"Save", "保存", "保存", "저장", "Guardar", "Sauvegarder", "Salva", "Speichern"};
+  static constexpr Msg LoadBtn = {"Load", "復元", "读取", "불러오기", "Cargar", "Charger", "Carica", "Laden"};
+  static constexpr Msg CloseBtn = {"Close", "閉じる", "关闭", "닫기", "Cerrar", "Fermer", "Chiudi", "Schließen"};
+  static constexpr Msg DeleteBtn = {"Delete", "削除", "删除", "삭제", "Eliminar", "Supprimer", "Elimina", "Löschen"};
+  static constexpr Msg Exit = {"Exit", "終了", "退出", "종료", "Salir", "Quitter", "Esci", "Beenden"};
+  static constexpr Msg Insert = {"Insert", "挿入", "插入", "삽입", "Insertar", "Insérer", "Inserisci", "Einlegen"};
+  static constexpr Msg Eject = {"Eject", "取り出し", "弹出", "꺼내기", "Expulsar", "Éjecter", "Espelli", "Auswerfen"};
+  static constexpr Msg InsertBlank2D = {"Insert Blank 2D Disk", "空の2Dディスクを挿入", "插入空白2D磁盘", "빈 2D 디스크 삽입", "Insertar disco 2D en blanco", "Insérer un disque 2D vierge", "Inserisci disco 2D vuoto", "Leere 2D-Diskette einlegen"};
+  static constexpr Msg InsertBlank2HD = {"Insert Blank 2HD Disk", "空の2HDディスクを挿入", "插入空白2HD磁盘", "빈 2HD 디스크 삽입", "Insertar disco 2HD en blanco", "Insérer un disque 2HD vierge", "Inserisci disco 2HD vuoto", "Leere 2HD-Diskette einlegen"};
+  static constexpr Msg WriteProtected = {"Write Protected", "書き込み禁止", "写保护", "쓰기 금지", "Protección contra escritura", "Protégé en écriture", "Protetto da scrittura", "Schreibgeschützt"};
+  static constexpr Msg CorrectTiming = {"Correct Timing", "正確なタイミング", "精确时序", "정확한 타이밍", "Temporización precisa", "Synchronisation précise", "Temporizzazione precisa", "Genaues Timing"};
+  static constexpr Msg IgnoreCRC = {"Ignore CRC Errors", "CRCエラーを無視", "忽略CRC错误", "CRC 오류 무시", "Ignorar errores CRC", "Ignorer les erreurs CRC", "Ignora errori CRC", "CRC-Fehler ignorieren"};
+  static constexpr Msg ImageN = {"Image %d", "イメージ %d", "镜像 %d", "이미지 %d", "Imagen %d", "Image %d", "Immagine %d", "Image %d"};
+  static constexpr Msg NoDiskInserted = {"(No disk inserted)", "(未挿入)", "(未插入磁盘)", "(디스크 없음)", "(Sin disco)", "(Aucun disque)", "(Nessun disco)", "(Keine Diskette)"};
+  static constexpr Msg RecentDisks = {"Recent Disks", "最近使ったディスク", "最近使用的磁盘", "최근 사용한 디스크", "Discos recientes", "Disques récents", "Dischi recenti", "Zuletzt verwendete Disketten"};
+  static constexpr Msg Play = {"Play...", "再生...", "播放...", "재생...", "Reproducir...", "Lecture...", "Riproduci...", "Abspielen..."};
+  static constexpr Msg Rec = {"Rec...", "録音...", "录音...", "녹음...", "Grabar...", "Enregistrer...", "Registra...", "Aufnehmen..."};
+  static constexpr Msg Recording = {"(Rec)", "(録音中)", "(录音中)", "(녹음 중)", "(Grabando)", "(Enregistrement)", "(Registrazione)", "(Aufnahme)"};
+  static constexpr Msg NoTapeInserted = {"(No tape inserted)", "(未挿入)", "(未插入磁带)", "(테이프 없음)", "(Sin cinta)", "(Aucune cassette)", "(Nessuna cassetta)", "(Keine Kassette)"};
+  static constexpr Msg RecentTapes = {"Recent Tapes", "最近使ったテープ", "最近使用的磁带", "최근 사용한 테이프", "Cintas recientes", "Cassettes récentes", "Cassette recenti", "Zuletzt verwendete Kassetten"};
+  static constexpr Msg SpecialFeatures = {"Special Features", "特殊機能", "特殊功能", "특수 기능", "Funciones especiales", "Fonctions spéciales", "Funzioni speciali", "Sonderfunktionen"};
+  static constexpr Msg QuasiCmt = {"QUASI88 Pseudo CMT", "QUASI88 擬似CMT", "QUASI88 模拟CMT", "QUASI88 의사 CMT", "CMT simulado de QUASI88", "CMT simulé QUASI88", "CMT simulato QUASI88", "QUASI88 Pseudo-CMT"};
+  static constexpr Msg BootDevice = {"Boot Device", "起動デバイス", "启动设备", "부팅 장치", "Dispositivo de arranque", "Périphérique de démarrage", "Dispositivo di avvio", "Startgerät"};
+  static constexpr Msg BootDeviceAuto = {"Auto (ROM if FD1 is empty)", "自動 (FD1が空ならROM)", "自动 (FD1为空时ROM)", "자동 (FD1이 비면 ROM)", "Automático (ROM si FD1 vacía)", "Auto (ROM si FD1 vide)", "Automatico (ROM se FD1 è vuoto)", "Automatisch (ROM, wenn FD1 leer)"};
+  static constexpr Msg BootDeviceRom = {"ROM", "ROM", "ROM", "ROM", "ROM", "ROM", "ROM", "ROM"};
+  static constexpr Msg BootDeviceDisk = {"Disk", "ディスク", "磁盘", "디스크", "Disco", "Disque", "Disco", "Diskette"};
+  static constexpr Msg Device = {"Device", "デバイス", "设备", "장치", "Dispositivo", "Appareil", "Dispositivo", "Gerät"};
+  static constexpr Msg Boot = {"Boot", "起動モード", "启动模式", "부팅 모드", "Modo de inicio", "Mode de démarrage", "Modalità di avvio", "Startmodus"};
+  static constexpr Msg CPU = {"CPU", "CPU", "处理器", "CPU", "CPU", "Processeur", "CPU", "CPU"};
+  static constexpr Msg Sound = {"Sound", "サウンド", "声音", "사운드", "Sonido", "Son", "Audio", "Sound"};
+  static constexpr Msg Display = {"Display", "表示", "显示", "디스플레이", "Pantalla", "Affichage", "Visualizzazione", "Anzeige"};
+  static constexpr Msg HighResolution = {"High Resolution", "高解像度", "高分辨率", "고해상도", "Alta resolución", "Haute résolution", "Alta risoluzione", "Hohe Auflösung"};
+  static constexpr Msg Standard = {"Standard", "標準", "标准", "표준", "Estándar", "Standard", "Standard", "Standard"};
+  static constexpr Msg ScanlineAuto = {"Set Scanline Automatically", "スキャンライン自動設定", "自动设置扫描线", "스캔라인 자동 설정", "Ajustar líneas de escaneo automáticamente", "Régler les lignes de balayage automatiquement", "Imposta scanline automaticamente", "Scanlines automatisch einstellen"};
+  static constexpr Msg Scanline = {"Scanline", "スキャンライン", "扫描线", "스캔라인", "Líneas de escaneo", "Lignes de balayage", "Scanline", "Scanlines"};
+  static constexpr Msg IgnorePalette = {"Ignore Palette Changes", "パレット変更を無視", "忽略调色板更改", "팔레트 변경 무시", "Ignorar cambios de paleta", "Ignorer les changements de palette", "Ignora modifiche della palette", "Palettenänderungen ignorieren"};
+  static constexpr Msg Host = {"Host", "ホスト", "主机", "호스트", "Host", "Hôte", "Host", "Host"};
+  static constexpr Msg AboutMenu = {"About %s...", "%sについて...", "关于%s...", "%s 정보...", "Acerca de %s...", "À propos de %s...", "Informazioni su %s...", "Über %s..."};
+  static constexpr Msg AboutTitle = {"About %s", "%sについて", "关于%s", "%s 정보", "Acerca de %s", "À propos de %s", "Informazioni su %s", "Über %s"};
+  static constexpr Msg VersionLabel = {"Version %s", "バージョン %s", "版本 %s", "버전 %s", "Versión %s", "Version %s", "Versione %s", "Version %s"};
+  static constexpr Msg Screen = {"Screen", "画面", "屏幕", "화면", "Pantalla", "Écran", "Schermo", "Bildschirm"};
+  static constexpr Msg Fullscreen = {"Fullscreen", "フルスクリーン", "全屏", "전체 화면", "Pantalla completa", "Plein écran", "Schermo intero", "Vollbild"};
+  static constexpr Msg SaveScreenshot = {"Save Screenshot...", "スクリーンショット保存...", "保存截图...", "스크린샷 저장...", "Guardar captura de pantalla...", "Enregistrer une capture d'écran...", "Salva screenshot...", "Screenshot speichern..."};
+  static constexpr Msg Input = {"Input", "入力", "输入", "입력", "Entrada", "Entrée", "Input", "Eingabe"};
+  static constexpr Msg EnableMouseInput = {"Enable Mouse Input", "マウス入力を有効化", "启用鼠标输入", "마우스 입력 사용", "Activar entrada de ratón", "Activer l'entrée souris", "Abilita input del mouse", "Mauseingabe aktivieren"};
+  static constexpr Msg ReleaseMouseCaptureHint = {"F12 releases mouse capture", "F12でマウスキャプチャを解放", "按F12释放鼠标捕获", "F12로 마우스 캡처 해제", "F12 libera la captura del ratón", "F12 libère la capture de la souris", "F12 rilascia la cattura del mouse", "F12 gibt die Maus frei"};
+  static constexpr Msg MouseMode = {"Mouse Mode", "マウス方式", "鼠标模式", "마우스 모드", "Modo de ratón", "Mode souris", "Modalità mouse", "Mausmodus"};
+  static constexpr Msg Mouse = {"Bus Mouse (PC-8872)", "バスマウス (PC-8872)", "总线鼠标 (PC-8872)", "버스 마우스 (PC-8872)", "Ratón de bus (PC-8872)", "Souris bus (PC-8872)", "Mouse bus (PC-8872)", "Busmaus (PC-8872)"};
+  static constexpr Msg MouseAsJoystick = {"Mouse as Joystick", "マウス擬似ジョイスティック", "鼠标模拟游戏杆", "마우스 조이스틱 모드", "Ratón como joystick", "Souris comme joystick", "Mouse come joystick", "Maus als Joystick"};
+  static constexpr Msg MouseSensitivity = {"Mouse Sensitivity", "マウス感度", "鼠标灵敏度", "마우스 감도", "Sensibilidad del ratón", "Sensibilité de la souris", "Sensibilità del mouse", "Mausempfindlichkeit"};
+  static constexpr Msg MapCursorToNumpad = {"Map cursor keys to Numpad", "カーソルキーをテンキーに割当", "映射方向键到数字键盘", "방향키를 숫자 키패드에 할당", "Mapear cursores al teclado numérico", "Mapper les flèches sur le pavé numérique", "Tasti cursore sul tastierino numerico", "Pfeiltasten auf Ziffernblock legen"};
+  static constexpr Msg MapDigitToNumpad = {"Map number keys to Numpad", "数字キーをテンキーに割当", "映射数字键到数字键盘", "숫자 키를 숫자 키패드에 할당", "Mapear números al teclado numérico", "Mapper les chiffres sur le pavé numérique", "Tasti numerici sul tastierino numerico", "Zifferntasten auf Ziffernblock legen"};
+  static constexpr Msg KeyboardLayout = {"Keyboard Layout", "キーボード配列", "键盘布局", "키보드 배열", "Distribución de teclado", "Disposition du clavier", "Layout tastiera", "Tastaturlayout"};
+  static constexpr Msg KeyboardLayoutUS = {"US", "US配列", "US布局", "US 배열", "US", "US", "US", "US"};
+  static constexpr Msg KeyboardLayoutJIS = {"JIS", "JIS配列", "JIS布局", "JIS 배열", "JIS", "JIS", "JIS", "JIS"};
+  static constexpr Msg SamplingFrequency = {"Sampling Frequency", "サンプリング周波数", "采样率", "샘플링 주파수", "Frecuencia de muestreo", "Fréquence d'échantillonnage", "Frequenza di campionamento", "Abtastrate"};
+  static constexpr Msg AudioLatency = {"Audio Latency", "オーディオレイテンシ", "音频延迟", "오디오 지연", "Latencia de audio", "Latence audio", "Latenza audio", "Audiolatenz"};
+  static constexpr Msg MuteFM = {"Mute FM", "FM消音", "FM静音", "FM 음소거", "Silenciar FM", "Couper le son FM", "Silenzia FM", "FM stummschalten"};
+  static constexpr Msg MuteSSG = {"Mute SSG", "SSG消音", "SSG静音", "SSG 음소거", "Silenciar SSG", "Couper le son SSG", "Silenzia SSG", "SSG stummschalten"};
+  static constexpr Msg MuteADPCM = {"Mute ADPCM", "ADPCM消音", "ADPCM静音", "ADPCM 음소거", "Silenciar ADPCM", "Couper le son ADPCM", "Silenzia ADPCM", "ADPCM stummschalten"};
+  static constexpr Msg MuteRhythm = {"Mute Rhythm", "リズム消音", "节奏音静音", "리듬 음소거", "Silenciar ritmo", "Couper le son du rythme", "Silenzia ritmo", "Rhythmus stummschalten"};
+  static constexpr Msg DumpMemory = {"Dump Memory...", "メモリダンプ...", "导出内存...", "메모리 덤프...", "Volcar memoria...", "Exporter la mémoire...", "Dump della memoria...", "Speicherabbild erstellen..."};
+  static constexpr Msg Debug = {"Debug", "デバッグ", "调试", "디버그", "Depuración", "Débogage", "Debug", "Debug"};
+  static constexpr Msg DebugMainCpu = {"Debug Main CPU", "メインCPUをデバッグ", "调试主CPU", "메인 CPU 디버그", "Depurar CPU principal", "Déboguer le CPU principal", "Debug CPU principale", "Haupt-CPU debuggen"};
+  static constexpr Msg DebugSubCpu = {"Debug Sub CPU", "サブCPUをデバッグ", "调试子CPU", "서브 CPU 디버그", "Depurar CPU secundaria", "Déboguer le CPU secondaire", "Debug CPU secondaria", "Sub-CPU debuggen"};
+  static constexpr Msg CloseDebugger = {"Close Debugger", "デバッガを閉じる", "关闭调试器", "디버거 닫기", "Cerrar depurador", "Fermer le débogueur", "Chiudi debugger", "Debugger schließen"};
+  static constexpr Msg LanguageLabel = {"Language", "言語", "语言", "언어", "Idioma", "Langue", "Lingua", "Sprache"};
+  // Language names are always shown in their own language (not translated)
+  static constexpr const char* LangEn = "English";
+  static constexpr const char* LangJp = "日本語";
+  static constexpr const char* LangZh = "简体中文";
+  static constexpr const char* LangKo = "한국어";
+  static constexpr const char* LangEs = "Español";
+  static constexpr const char* LangFr = "Français";
+  static constexpr const char* LangIt = "Italiano";
+  static constexpr const char* LangDe = "Deutsch";
+  static constexpr Msg SpeedLabel = {"Speed: x%.2g", "速度: x%.2g", "速度: x%.2g", "속도: x%.2g", "Velocidad: x%.2g", "Vitesse: x%.2g", "Velocità: x%.2g", "Geschwindigkeit: x%.2g"};
+  static constexpr Msg SpeedLabelInt = {"Speed: x%d", "速度: x%d", "速度: x%d", "속도: x%d", "Velocidad: x%d", "Vitesse: x%d", "Velocità: x%d", "Geschwindigkeit: x%d"};
+  static constexpr Msg VolumeLabel = {"Vol:", "音量:", "音量:", "음량:", "Vol:", "Vol:", "Vol:", "Lautst.:"};
+  static constexpr Msg FPSView = {"FPS: %.1f", "表示: %.1f", "帧率: %.1f", "표시: %.1f", "FPS: %.1f", "IPS: %.1f", "FPS: %.1f", "FPS: %.1f"};
+  static constexpr Msg FPSCore = {"Core: %.1f", "実行: %.1f", "核心: %.1f", "실행: %.1f", "Núcleo: %.1f", "Cœur: %.1f", "Core: %.1f", "Kern: %.1f"};
 }
 
 // Alpha mask derived from the supplied mouse.png and reduced to 11x16.
@@ -580,6 +589,14 @@ void OSD::initialize(int rate, int samples) {
       } else if (lang == "fr") {
         current_lang = Language::FRENCH;
         OSD_LOG("Switching UI language to French");
+        break;
+      } else if (lang == "it") {
+        current_lang = Language::ITALIAN;
+        OSD_LOG("Switching UI language to Italian");
+        break;
+      } else if (lang == "de") {
+        current_lang = Language::GERMAN;
+        OSD_LOG("Switching UI language to German");
         break;
       }
     }
@@ -2824,6 +2841,14 @@ void OSD::load_font() {
 #endif
   };
 
+  // Korean fallback for non-Korean UI (only needs a few glyphs such as
+  // the native name in the Language menu, so prefer a smaller font)
+  std::vector<std::string> ko_fallback_fonts = ko_fonts;
+#ifdef __APPLE__
+  ko_fallback_fonts.insert(ko_fallback_fonts.begin(),
+                           "/System/Library/Fonts/Supplemental/AppleGothic.ttf");
+#endif
+
   ImFont* base_font = nullptr;
 
   // ------------------------------------------------------------
@@ -2847,6 +2872,7 @@ void OSD::load_font() {
   // ------------------------------------------------------------
   // 2. Merge CJK Font
   // ------------------------------------------------------------
+  std::vector<std::string> merged_paths;
   auto merge_font = [&](const std::vector<std::string>& paths,
                         const ImWchar* ranges,
                         const char* label) {
@@ -2857,6 +2883,14 @@ void OSD::load_font() {
       OSD_LOG("No %s font found", label);
       return;
     }
+
+    // ImGui 1.92 loads glyphs on demand from the whole file, so merging
+    // the same file twice only wastes memory.
+    if (std::find(merged_paths.begin(), merged_paths.end(), path) != merged_paths.end()) {
+      OSD_LOG("Skipping %s font (already merged): %s", label, path.c_str());
+      return;
+    }
+    merged_paths.push_back(path);
 
     ImFontConfig cfg;
     cfg.MergeMode = (io.Fonts->Fonts.Size > 0);
@@ -2882,6 +2916,8 @@ void OSD::load_font() {
         io.Fonts->GetGlyphRangesJapanese(),
         "Japanese"
       );
+      merge_font(zh_fonts, nullptr, "Chinese fallback");
+      merge_font(ko_fallback_fonts, nullptr, "Korean fallback");
       break;
 
     case Language::CHINESE:
@@ -2897,6 +2933,7 @@ void OSD::load_font() {
         io.Fonts->GetGlyphRangesJapanese(),
         "Japanese fallback"
       );
+      merge_font(ko_fallback_fonts, nullptr, "Korean fallback");
       break;
 
     case Language::KOREAN:
@@ -2912,6 +2949,7 @@ void OSD::load_font() {
         io.Fonts->GetGlyphRangesJapanese(),
         "Japanese fallback"
       );
+      merge_font(zh_fonts, nullptr, "Chinese fallback");
       break;
 
     default:
@@ -2922,6 +2960,8 @@ void OSD::load_font() {
         io.Fonts->GetGlyphRangesJapanese(),
         "Japanese fallback"
       );
+      merge_font(zh_fonts, nullptr, "Chinese fallback");
+      merge_font(ko_fallback_fonts, nullptr, "Korean fallback");
       break;
   }
 
@@ -3484,6 +3524,8 @@ bool OSD::draw_menu_contents() {
         select_language(Lang::LangKo, Language::KOREAN);
         select_language(Lang::LangEs, Language::SPANISH);
         select_language(Lang::LangFr, Language::FRENCH);
+        select_language(Lang::LangIt, Language::ITALIAN);
+        select_language(Lang::LangDe, Language::GERMAN);
         ImGui::EndMenu();
       }
       ImGui::EndMenu();
